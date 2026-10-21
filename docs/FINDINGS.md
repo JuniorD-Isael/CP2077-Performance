@@ -18,6 +18,47 @@ O `options.json` é a referência do schema: cada opção tem `name`, `type`
 `default_value`, `is_visible`, `in_pre_game`, `in_game` e
 `update_policy` (`immediately` vs `require_confirmation` vs `require_restart`).
 
+### 1.1 O campo `values` — o schema define os valores aceitos
+
+Opções do tipo `string_list`/`name_list` trazem um array **`values`** com a
+lista exata de valores válidos, e `display_values` com as chaves de
+localização correspondentes:
+
+```json
+{
+    "name": "VolumetricCloudsQuality",
+    "type": "string_list",
+    "index": 1,
+    "default_index": 1,
+    "values":        [ "Off", "Medium", "High", "Ultra" ],
+    "display_values":[ "UI-Settings-Video-QualitySetting-Off", ... ]
+}
+```
+
+**Isto é crítico:** o jogo **reverte silenciosamente** qualquer valor fora
+dessa lista ao carregar as settings. Nenhum erro, nenhum aviso — a opção
+simplesmente volta ao valor anterior.
+
+Descoberto empiricamente: após aplicar o perfil e jogar uma sessão, 5 opções
+foram revertidas pelo jogo:
+
+| Opção | Valor aplicado | Valor aceito | Valor final |
+|---|---|---|---|
+| `VolumetricCloudsQuality` | `Low` | `Off`, `Medium`, `High`, `Ultra` | `Off` |
+| `GlobaIlluminationRange` | `Low` | `High`, `Ultra` | `High` |
+| `ColorPrecision` | `Low` | `Medium`, `High` | `Medium` |
+| `HDDMode` | `HDD` | `Off`, `On`, `Auto` | `Auto` |
+| `EnableTelemetry` | `false` | (bool, mas revertida) | `true` |
+
+`EnableTelemetry` é caso especial: além do valor, o jogo pode reativá-la por
+política de conta. O instalador agora **valida o perfil contra o schema** e
+falha alto quando encontra valor inválido, em vez de deixar o jogo reverter
+em silêncio.
+
+Nota: nem toda opção tem `values`. Opções `bool` e `int` não têm lista, e
+`EnableTelemetry` (bool) foi revertida mesmo assim — o que sugere que a
+reversão pode vir de outro caminho (normalização do jogo ao salvar).
+
 ---
 
 ## 2. Mecanismo de cvars — confirmado em runtime

@@ -1,7 +1,7 @@
 {
   "$schema": "./profile.schema.json",
   "name": "Low-Spec 30 FPS",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "target": {
     "cpu": "AMD Ryzen 5 5500U (6C/12T, 2.1 GHz)",
     "gpu": "AMD Radeon Vega 8 (integrated, shared VRAM)",
@@ -117,9 +117,9 @@
   "userSettings": {
     "_comment": "Opcoes do menu. Lidas de %LOCALAPPDATA%\\CD Projekt Red\\Cyberpunk 2077\\UserSettings.json. O jogo reescreve esse arquivo ao sair: aplicar com o jogo FECHADO.",
     "values": {
-      "VolumetricCloudsQuality": "Low",
-      "GlobaIlluminationRange": "Low",
-      "ColorPrecision": "Low",
+      "VolumetricCloudsQuality": "Off",
+      "GlobaIlluminationRange": "High",
+      "ColorPrecision": "Medium",
       "AmbientOcclusion": "Low",
       "ScreenSpaceReflectionsQuality": "Low",
       "ShadowMeshQuality": "Low",
@@ -145,7 +145,7 @@
       "EnableTelemetry": false,
       "Cinematic": false,
       "Overheads": false,
-      "HDDMode": "HDD",
+      "HDDMode": "On",
       "HDDMode2": "Off",
       "VSync": "UI-Settings-Video-QualitySetting-Off",
       "MotionBlur": "Off",

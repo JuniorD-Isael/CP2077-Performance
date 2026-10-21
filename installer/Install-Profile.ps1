@@ -89,6 +89,27 @@ function ConvertTo-Hashtable {
     return $InputObject
 }
 
+function Get-SettingsSchema {
+    # Le o schema oficial do jogo: r6/config/settings/options.json + platform/pc/options.json
+    # Cada opcao pode ter um array 'values' com os valores aceitos.
+    param([string]$Root)
+    $schema = @{}
+    $files = @(
+        (Join-Path $Root "r6\config\settings\options.json"),
+        (Join-Path $Root "r6\config\settings\platform\pc\options.json")
+    )
+    foreach ($f in $files) {
+        if (-not (Test-Path $f)) { continue }
+        try { $j = Get-Content $f -Raw | ConvertFrom-Json } catch { continue }
+        foreach ($g in $j.options) {
+            foreach ($o in $g.options) {
+                if (-not $schema.ContainsKey($o.name)) { $schema[$o.name] = $o }
+            }
+        }
+    }
+    return $schema
+}
+
 function Assert-GameClosed {
     $proc = Get-Process -Name "Cyberpunk2077" -ErrorAction SilentlyContinue
     if ($proc -and -not $Force) {
@@ -317,6 +338,30 @@ Write-Host "[2/3] UserSettings.json (opcoes do menu)" -ForegroundColor White
 if (-not (Test-Path $usPath)) {
     Write-Host "  !! UserSettings.json nao encontrado (jogo nunca rodou?) em $usPath" -ForegroundColor Red
 } else {
+    # Validar os valores do perfil contra o schema do jogo.
+    # O jogo reverte valores invalidos ao carregar, silenciosamente.
+    $schema = Get-SettingsSchema -Root $root
+    $invalid = @()
+    foreach ($p in $prof.userSettings.values.PSObject.Properties) {
+        if (-not $schema.ContainsKey($p.Name)) {
+            $invalid += "$($p.Name): opcao nao existe no schema do jogo"
+            continue
+        }
+        $opt = $schema[$p.Name]
+        if ($opt.PSObject.Properties.Name -contains 'values' -and $opt.values) {
+            $valid = @($opt.values)
+            if ($valid -notcontains ([string]$p.Value)) {
+                $invalid += "$($p.Name) = '$($p.Value)' invalido; aceitos: $($valid -join ', ')"
+            }
+        }
+    }
+    if ($invalid.Count -gt 0) {
+        Write-Host "  !! VALORES INVALIDOS (o jogo vai reverter):" -ForegroundColor Red
+        foreach ($i in $invalid) { Write-Host "     $i" -ForegroundColor Red }
+    } else {
+        Write-Host "  todos os valores conferem com o schema do jogo" -ForegroundColor DarkGray
+    }
+
     $us = Get-Content $usPath -Raw | ConvertFrom-Json
     $usChanged = @()
     foreach ($grp in $us.data) {
