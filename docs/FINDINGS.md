@@ -554,3 +554,115 @@ foram aplicados e confirmados no `user.ini` desta sessão, mas **o efeito
 individual não foi isolado** — falta a contraprótese (rodar sem eles na
 mesma rota). É o experimento A/B pendente, e o que falta é uma rota
 jogável comparável, não instrumentação: a instrumentação está pronta.
+
+---
+
+## 14. O aplicativo desktop
+
+O aplicativo substitui o instalador de linha de comando e o painel in-game.
+As seções abaixo registram o que a implementação fixou, e por quê.
+
+### 14.1 Regras de derivação de caminho
+
+A regra é: **um único dado informado pelo usuário** — a pasta do jogo — e
+todo o resto é derivado.
+
+| alvo | origem |
+|---|---|
+| `engine\config\platform\pc\user.ini` | `<pasta do jogo>` |
+| `bin\x64\plugins\cyber_engine_tweaks\config.json` | `<pasta do jogo>` |
+| `bin\x64\Cyberpunk2077.exe` | `<pasta do jogo>` (valida a instalação) |
+| `r6\config\settings\options.json` | `<pasta do jogo>` (esquema) |
+| `UserSettings.json` | `%LOCALAPPDATA%\CD Projekt Red\Cyberpunk 2077\` |
+
+**O diretório de save é definido pela CD PROJEKT RED, não pela loja.** A mesma
+instalação servida por Steam, Epic ou GOG lê e grava no mesmo lugar. Por isso
+uma única build cobre as três, e o aplicativo **não varre o disco** para
+descobrir instalações: o usuário aponta, e pronto.
+
+A camada de patches do Cyber Engine Tweaks é **opcional**: uma instalação sem
+o plugin é válida e opera sem essa camada, com aviso.
+
+### 14.2 O que a validação por token prova — e o que não prova
+
+O executável guarda a **seção** e a **chave** como strings separadas; o path
+`Grupo/Feature/Nome` é montado em runtime. Por isso a checagem de uma chave
+de cvar procura o **token isolado** do nome da chave, delimitado por byte
+nulo.
+
+- **Ausência de um token é sinal forte de erro de digitação.** O motor não
+  consegue casar um nome que não está no executável, e ignora chaves
+  desconhecidas em silêncio. Foi assim que `EnableAirResistane` — grafia
+  herdada da `FeatureList` do ConfigOverhaul — foi encontrado.
+- **Presença não prova consumo.** O nome existir no binário mostra que o
+  identificador existe, não que o motor o leia como cvar. `EnableAirResistance`
+  aparece na região de curvas de física de veículo, o que sugere que pode ser
+  propriedade de curva em vez de cvar. **A prova definitiva exigiria o mapa de
+  xrefs** entre a função C++ que registra a opção e a string — que ainda não
+  foi produzido (ver §12).
+
+O aplicativo declara essa limitação ao usuário, em vez de vender a checagem
+como prova.
+
+Uma exceção é conhecida e documentada: `GlassUseMipChain` não existe no
+executável, mas vem do `user.ini` que o próprio jogo entrega. Fica como
+aviso, não como erro.
+
+### 14.3 A técnica de escrita cirúrgica
+
+O arquivo de opções do jogo é reescrito **apenas** nos campos de valor e de
+índice das opções visadas. O resto do arquivo fica **byte a byte igual.
+
+A medição, contra a instalação real:
+
+```
+UserSettings.json   2768 linhas -> 2768 linhas, 26 linhas alteradas
+                    (todas campos "value" ou "index")
+user.ini            5 secoes -> 15 secoes, ordem das 5 originais preservada
+                    e todos os comentarios do motor intactos
+config.json         3 patches mudados, os outros 2 intocados
+```
+
+Um round-trip de serialização reescreveria o arquivo inteiro, mudaria a
+formatação e o tamanho dos números, e produziria um diff ilegível — o que
+contraria a promessa de auditabilidade do projeto. A verificação pós-escrita
+relê os arquivos e compara com o esperado; divergência é reportada como
+falha, não como sucesso silencioso.
+
+O `user.ini` é manipulado por texto, e não por parser de INI de uso geral,
+porque o arquivo do motor carrega comentários que documentam efeitos
+colaterais (`;Don't disable. (breaks lightmaps)`) e a ordem das seções é
+informação.
+
+### 14.4 Por que o painel in-game saiu do projeto
+
+O painel vivia no sandbox Lua do Cyber Engine Tweaks, que **confina o `io` ao
+diretório do mod**. O diagnóstico, rodando dentro do jogo, devolveu:
+
+```
+os.getenv                     -> nao existe
+os = clock date difftime remove rename time   (sem getenv, sem execute)
+_G                            -> nil
+io.open caminho com ".."      -> nil
+io.open caminho ABSOLUTO      -> nil
+io.open no CWD do mod         -> funciona
+```
+
+Duas consequências definitivas:
+
+1. **A causa da morte silenciosa do botão Apply.** `UserSettingsPath()` chamava
+   `os.getenv("LOCALAPPDATA")` → *"attempt to call a nil value"* → o callback
+   morria ali, sem log e sem erro no log do CET. As três falhas registradas
+   na §10 são a mesma causa.
+2. **Nenhum caminho alcança o jogo.** Nem relativo com `..`, nem absoluto.
+   O painel **nunca** conseguiu aplicar o perfil — não era bug de caminho, e
+   a correção de "cinco → seis níveis" não resolveria.
+
+Some-se a isso o fato de o painel **poder mentir**: a interface refletia o
+valor desejado, não o valor em vigor, e nada mais lia o arquivo de
+intenção que ele gravava. Um painel pela metade no menu do jogo é pior do
+que não ter: é uma interface que confirma mudanças inexistentes.
+
+O aplicativo assume o papel, e com ele o acesso real aos arquivos, a
+validação contra o esquema e contra o executável, e a possibilidade de
+mostrar o estado efetivo.

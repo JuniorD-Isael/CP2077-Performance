@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>CP2077Performance.App</RootNamespace>
+    <AssemblyName>CP2077-Performance</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <SatelliteResourceLanguages>en;pt-BR</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP2077Performance.Ui\CP2077Performance.Ui.csproj" />
+    <ProjectReference Include="..\CP2077Performance.Core\CP2077Performance.Core.csproj" />
+  </ItemGroup>
+
+  <!-- O perfil curado do repositorio viaja dentro do executavel: o repositorio
+       continua sendo a fonte unica de verdade e o usuario tem o seu proprio
+       perfil em %LOCALAPPDATA%. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\profile\lowspec-30fps.json"
+                      LogicalName="CP2077Performance.Profile.default.json" />
+  </ItemGroup>
+
+</Project>

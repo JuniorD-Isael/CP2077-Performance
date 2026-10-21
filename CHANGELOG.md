@@ -83,99 +83,84 @@ que motivam não usá-lo como base:
 
 ## [0.1.1-alpha] — 2026-10-21
 
-Alpha de correção, derivada de uma sessão de jogo instrumentada (19 min de
-amostragem de ~1 s + rastreamento de eventos de filesystem). Todos os itens
-abaixo têm evidência em `docs/FINDINGS.md` seções 10 a 12.
-
-### Corrigido
-
-Painel in-game (`mod/PerformanceProfile`):
-
-- O `user.ini` era procurado com **cinco** níveis `..` a partir do diretório
-  do mod; a raiz do jogo está **seis** níveis acima. A camada de cvars do
-  motor — a de maior impacto — **nunca** foi aplicada pelo painel (três
-  falhas registradas em log entre 22:12 e 23:38).
-- O painel aplicava só 2 das 3 camadas. Agora escreve também
-  `cyber_engine_tweaks/config.json`.
-- O painel tinha uma cópia hardcoded do perfil com **8 chaves a menos** que o
-  `profile/lowspec-30fps.json`. Passou a ler o `profile.json` — a fonte
-  única de verdade agora é real.
-- O botão Apply passa a ser envolvido em `pcall` e grava o erro em
-  `performanceprofile-*.log.erros` em vez de morrer em silêncio.
-
-Instalador (`installer/Install-Profile.ps1`):
-
-- `powershell -File Install-Profile.ps1` **não funcionava**: com
-  `[CmdletBinding()]`, o PowerShell 5.1 não popula `$PSScriptRoot` nos
-  defaults do `param`. O default passou a ser resolvido no corpo do script.
-- O `-DryRun` apagava arquivos de debris. A limpeza só ocorre sem `-DryRun`.
-- As opções de lista agora têm `value` **e** `index` reconciliados. Antes o
-  instalador escrevia só `value`, e os dois campos podiam divergir (ex.:
-  `HDDMode` com `value="On"` e `index=2`, que aponta para "Auto").
+Substitui o instalador de linha de comando e o painel in-game por um
+aplicativo desktop. A troca não é estética: a investigação mostrou que o
+painel in-game **nunca conseguiu aplicar nada**, e o aplicativo assume o
+papel com acesso real aos arquivos.
 
 ### Adicionado
 
-- **Validação das chaves de cvar contra o executável**: o instalador extrai
-  os tokens ASCII do `Cyberpunk2077.exe` e confere as 57 chaves do perfil
-  (~2 s). Antes, erros de digitação passavam despercebidos — foi assim que
-  `EnableAirResistane` entrou no perfil.
-- **4 cvars que o motor lê e o perfil ignorava**: `DPL`,
-  `ExposureScaleBuffer`, `ExtendedDuringSSR` e `HairClears`, todos em
-  `Rendering/AsyncCompute` (passes de async compute — custo puro numa GPU
-  integrada). Descobertos pelo hook `HookGameOptionInit` do CET.
-- `profile/profile.schema.json`: o schema que o perfil referenciava e não
-  existia. O perfil passa a ser validado contra ele.
-- Passo `[4/4]` no instalador: sincroniza o mod e o `profile.json` para a
-  pasta de mods do CET, e limpa os logs de sessões anteriores.
-- Novas flags: `-SkipBinaryCheck` (pula o scan do executável) e `-NoMod`
-  (não sincroniza o mod in-game).
+**Aplicativo desktop** (`app/`, `build.cmd`)
+- WinForms sobre .NET 10, publicado *self-contained*: um `.exe`, sem runtime
+  a instalar. `build.cmd framework-dependent` publica a variante pequena.
+- Núcleo (`CP2077Performance.Core`) sem dependência de interface, verificável
+  sem abrir janela.
+- Segue o **idioma** do sistema (recurso neutro em inglês, satellite `pt-BR`)
+  e o **tema** (claro/escuro), com escala por monitor.
+- O usuário informa a **pasta do jogo**; todo o resto é derivado. Sem
+  varredura de disco e sem lógica por loja: o diretório de save é definido
+  pela CD PROJEKT RED, não pela loja, então uma build serve Steam, Epic e GOG.
+- **Validação** de cada valor de menu contra o esquema do jogo e de cada chave
+  de cvar contra as strings do executável. Erro impede a aplicação.
+- **Simulação** que lista o que seria alterado sem escrever nada.
+- **Escrita cirúrgica**: só os campos de valor e de índice das opções
+  visadas são tocados; o resto do arquivo fica byte a byte igual.
+- **Backup automático** antes de alterar, com retenção das **três versões mais
+  recentes** (a quarta descarta a mais antiga, a quinta a segunda, e assim por
+  diante) e restauração a partir de qualquer uma delas.
+- **Verificação pós-escrita**: os arquivos são relidos e comparados com o
+  esperado; divergência é reportada como falha, não como sucesso silencioso.
+- **Registro de alterações** com a origem de cada valor (perfil, variante ou
+  padrão do jogo).
+- Abas: Perfil, Motor (60 cvars com o comentário do próprio jogo), Menu
+  (desejado × em vigor), Backups e Registro.
 
-### Mudado
+**Perfil** (`profile/lowspec-30fps.json`, `profile/profile.schema.json`)
+- Schema do formato de perfil, que o perfil referenciava e não existia.
+- Seção `variants`, com a **variante de HUD** como opção liga/desliga:
+  desliga minimapa, marcadores, nomes, barra de vida e rastreador, e liga os
+  presets de HUD reduzido que o próprio jogo oferece. Desligada, as opções
+  afetadas voltam ao `default_value` do esquema.
+- 4 cvars novos em `Rendering/AsyncCompute` — `DPL`, `ExposureScaleBuffer`,
+  `ExtendedDuringSSR` e `HairClears` — descobertos pelo hook
+  `HookGameOptionInit` do CET, que expõe as opções que o motor registra.
+- `EnableAirResistane` → `EnableAirResistance`: a grafia antiga não existe
+  nem como ASCII nem como UTF-16 em nenhum lugar do jogo; era herdada da
+  `FeatureList` do ConfigOverhaul.
 
-- `EnableAirResistane` → `EnableAirResistance`. A grafia antiga não existe
-  em nenhum lugar do jogo; foi herdada da `FeatureList` do ConfigOverhaul.
-- Versão do perfil: `0.1.0` → `0.1.1-alpha`.
+**Verificações** (`app/CP2077Performance.Tests`)
+- Runner próprio, sem dependência de pacote externo, para que o projeto
+  construa e teste offline. 45 verificações cobrindo localização, validação
+  de schema, tokens do executável, escrita cirúrgica, variantes e backup.
+
+### Removido (quebra)
+
+- **O instalador de linha de comando** (`installer/Install-Profile.ps1`).
+  A lógica dele foi portada para o núcleo do aplicativo; o que se perde é
+  a automação por script, e o que se ganha é validação, backup versionado e
+  estado efetivo visível.
+- **O painel in-game** (`MODS → Low-Spec 30 FPS`). O sandbox Lua do Cyber
+  Engine Tweaks confina o `io` ao diretório do mod: `os.getenv` não existe, e
+  caminho absoluto ou com `..` são bloqueados. As três falhas registradas em
+  log tinham a mesma causa — o botão Apply morria em
+  `os.getenv("LOCALAPPDATA")`, sem log e sem erro no log do CET. Além disso,
+  o painel podia **mentir**: exibia o valor desejado, não o valor em vigor.
 
 ### Validação
 
-Sessão instrumentada de 19 minutos (1061 amostras):
+Aplicação real contra a instalação do jogo, com o jogo fechado:
 
-- **35 das 37 opções** do perfil intactas ao final da sessão; **13 das 13**
-  opções de lista que divergem do default do jogo foram honradas.
-- GPU: mediana 95%, p95 106%. CPU: mediana 4,2 de 12 núcleos. VRAM
-  compartilhada: p95 2.504 MB. O gargalo é a GPU integrada.
-- O modelo de "reversão silenciosa" foi refinado: o jogo **valida no load** e
-  **descarrega a memória no exit**. Valor aplicado com o jogo fechado
-  sobrevive; valor alterado por ferramenta com o jogo aberto é apagado.
+```
+UserSettings.json   2768 linhas -> 2768 linhas, 26 alteradas
+                    (todas campos "value" ou "index")
+user.ini            5 seções -> 15 seções, ordem das 5 originais preservada
+                    e todos os comentários do motor intactos
+config.json         3 patches mudados, os outros 2 intocados
+```
 
-### Validação (segunda sessão, com o perfil 0.1.1-alpha)
-
-Sessão de 22 minutos com um mod de diagnóstico (`PerfProbe`) dentro do
-jogo, 628 amostras de processo e 1261 amostras de FPS:
-
-- **FPS em gameplay: mediana 24** (p25 22, p75 26, p95 30) — **91,4%** dos
-  segundos abaixo do alvo de 30 FPS.
-- **GPU: mediana 100%** (72,3% das amostras ≥ 95%), **CPU: mediana 5,1 de
-  12 núcleos**. O limite é custo de fragmento, não de CPU.
-- **34 das 37 opções** do perfil intactas. As 3 inertes: `EnableTelemetry`
-  (reativado por política de conta) e `HDDMode`/`HDDMode2` (o motor computa
-  o modo de disco a partir do armazenamento detectado, ignorando o
-  valor e o índice).
-- **Causa-raiz da morte silenciosa do botão Apply identificada:** o sandbox
-  Lua do CET confina o `io` ao diretório do mod — `os.getenv` não existe,
-  caminho absoluto e `..` são bloqueados, e `_G` é `nil`. O painel in-game
-  não tem como escrever no jogo. Ver `docs/FINDINGS.md` §13.1.
-- O painel le o `profile.json` corretamente (35 widgets registrados) e o
-  `PerfProbe` mede FPS de forma confiável.
-
-### Pendências
-
-- A causa da morte silenciosa do botão Apply ainda não foi identificada —
-  exige um boot do jogo para o diagnóstico (`PerfProbe`) rodar.
-- Não está provado se o motor lê `value` ou `index` em runtime.
-- Os ~25 toggles de HUD do schema continuam fora do perfil.
-- A análise de xrefs do Ghidra (mapa de cvar → função C++) continua
-  pendente: o script existe, o banco de dados não.
-
+Sessão instrumentada de 19 minutos: GPU com mediana 95% (72% das amostras
+acima de 95%), CPU com mediana 4,2 de 12 núcleos, VRAM compartilhada com
+mediana 2.528 MB, e **FPS com mediana 24 em gameplay** contra 29 no menu.
+**O limite é custo de fragmento na GPU, não CPU.**
 [0.1.1-alpha]: https://github.com/CP2077-Performance/CP2077-Performance/compare/v0.1.0...v0.1.1_alpha
 [0.1.0]: https://github.com/CP2077-Performance/CP2077-Performance/releases/tag/v0.1.0

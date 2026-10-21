@@ -17,6 +17,13 @@ mod/PerformanceProfile/*.bak
 otimizar-game-mod-configura-es-via-rea.json
 *.session.json
 
+# Artefato de build do aplicativo
+dist/
+
+# Build do .NET
+app/**/bin/
+app/**/obj/
+
 # Sistema
 Thumbs.db
 desktop.ini

@@ -95,6 +95,31 @@
           "additionalProperties": { "type": "boolean" }
         }
       }
+    },
+    "variants": {
+      "type": "object",
+      "description": "Variantes opcionais, ligadas pelo usuario. Desligada, uma variante devolve as opcoes que ela afeta ao default_value do esquema do jogo.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label", "userSettings"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "userSettings": {
+            "type": "object",
+            "required": ["values"],
+            "additionalProperties": false,
+            "properties": {
+              "values": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": { "type": ["string", "number", "boolean"] }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

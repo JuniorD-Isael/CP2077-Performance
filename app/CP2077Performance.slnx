@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CP2077Performance.App/CP2077Performance.App.csproj" />
+  <Project Path="CP2077Performance.Core/CP2077Performance.Core.csproj" />
+  <Project Path="CP2077Performance.Tests/CP2077Performance.Tests.csproj" />
+  <Project Path="CP2077Performance.Ui/CP2077Performance.Ui.csproj" />
+</Solution>
