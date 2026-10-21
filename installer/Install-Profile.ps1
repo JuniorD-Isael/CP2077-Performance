@@ -34,14 +34,24 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Profile = (Join-Path $PSScriptRoot "..\profile\lowspec-30fps.json"),
+    # Nao usar $PSScriptRoot como default aqui: com [CmdletBinding()] o
+    # PowerShell 5.1 nao popula $PSScriptRoot durante a avaliacao dos
+    # defaults do param quando o script e chamado via `powershell -File`.
+    # O default e resolvido no corpo do script, mais abaixo.
+    [string]$Profile = "",
     [string]$GameRoot = "",
     [switch]$DryRun,
     [switch]$Restore,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$SkipBinaryCheck,
+    [switch]$NoMod
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $Profile) {
+    $Profile = Join-Path $PSScriptRoot "..\profile\lowspec-30fps.json"
+}
 
 # ---------------------------------------------------------------- funcoes
 
@@ -109,6 +119,44 @@ function Get-SettingsSchema {
     }
     return $schema
 }
+
+# ------------------------------------------------------------------ binario
+
+# Chaves de cvar que o proprio user.ini original do jogo traz, mas que NAO
+# existem como token no executavel. Ver docs/FINDINGS.md secao 10.
+$KnownAbsentCvars = @(
+    "GlassUseMipChain"
+)
+
+# Retorna o conjunto de tokens ASCII imprimiveis do executavel do jogo.
+# O motor registra as opcoes como struct GameOption e o log do CET expoe o
+# path no formato "Grupo/Feature/Nome" - o path e montado em runtime, o
+# executavel guarda a secao e a chave SEPARADAMENTE. Logo, para validar uma
+# chave de cvar, procuramos o token isolado (delimitado por byte nao
+# imprimivel) correspondente ao NOME da chave.
+function Get-BinaryTokenSet {
+    param([string]$Path, [string[]]$Tokens)
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $text  = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    $want = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($t in $Tokens) { [void]$want.Add($t) }
+    $minLen = 999; $maxLen = 0
+    foreach ($t in $Tokens) {
+        if ($t.Length -lt $minLen) { $minLen = $t.Length }
+        if ($t.Length -gt $maxLen) { $maxLen = $t.Length }
+    }
+    if ($minLen -gt $maxLen) { $minLen = 1; $maxLen = 1 }
+    foreach ($chunk in $text.Split([char]0)) {
+        if ($chunk.Length -lt $minLen -or $chunk.Length -gt $maxLen) { continue }
+        # [void] obrigatorio: HashSet.Remove() devolve um booleano que, sem
+        # supressao, seria emitido no pipeline e poluiria o retorno da funcao.
+        if ($want.Contains($chunk)) { [void]$want.Remove($chunk) }
+    }
+    # o que sobrou em $want NAO existe no binario
+    return $want
+}
+
+# ------------------------------------------------------------------ assert
 
 function Assert-GameClosed {
     $proc = Get-Process -Name "Cyberpunk2077" -ErrorAction SilentlyContinue
@@ -305,7 +353,7 @@ $usPath     = Get-UserSettingsPath
 $cetPath    = Join-Path $root "bin\x64\plugins\cyber_engine_tweaks\config.json"
 
 # --- 1. user.ini ---
-Write-Host "[1/3] user.ini (cvars do motor)" -ForegroundColor White
+Write-Host "[1/4] user.ini (cvars do motor)" -ForegroundColor White
 if (-not (Test-Path $iniPath)) {
     Write-Host "  !! user.ini nao encontrado em $iniPath" -ForegroundColor Red
 } else {
@@ -316,6 +364,36 @@ if (-not (Test-Path $iniPath)) {
     }
 
     $values = ConvertTo-Hashtable $prof.userIni
+
+    # --- validacao das chaves de cvar contra o executavel ---
+    if (-not $SkipBinaryCheck) {
+        $exePath = Join-Path $root "bin\x64\Cyberpunk2077.exe"
+        if (-not (Test-Path $exePath)) {
+            Write-Host "  !! executavel nao encontrado em $exePath - validacao de chaves pulada" -ForegroundColor Yellow
+        } else {
+            $cvarNames = @()
+            foreach ($sec in $values.Keys) {
+                if ($sec.StartsWith("_")) { continue }
+                foreach ($k in $values[$sec].Keys) { $cvarNames += $k }
+            }
+            $cvarNames = @($cvarNames | Sort-Object -Unique)
+            $swBin = [Diagnostics.Stopwatch]::StartNew()
+            $absent = Get-BinaryTokenSet -Path $exePath -Tokens $cvarNames
+            $elapsed = [math]::Round($swBin.Elapsed.TotalSeconds,1)
+            $present = $cvarNames.Count - $absent.Count
+            Write-Host ("  chaves de cvar presentes no executavel: {0} de {1} ({2}s)" -f $present, $cvarNames.Count, $elapsed) -ForegroundColor DarkGray
+            if ($absent.Count -gt 0) {
+                foreach ($a in ($absent | Sort-Object)) {
+                    if ($KnownAbsentCvars -contains $a) {
+                        Write-Host "  AVISO: cvar '$a' nao existe no executavel, mas vem do user.ini original do proprio jogo (ver docs/FINDINGS.md)" -ForegroundColor Yellow
+                    } else {
+                        Write-Host "  AVISO: cvar '$a' NAO existe no executavel - probable erro de digitacao; o motor ignora chaves desconhecidas em silencio" -ForegroundColor Red
+                    }
+                }
+            }
+        }
+    }
+
     # simular em memoria para so mostrar o que mudaria
     $tmp = [System.IO.Path]::GetTempFileName()
     Copy-Item $iniPath $tmp -Force
@@ -334,7 +412,7 @@ if (-not (Test-Path $iniPath)) {
 }
 
 # --- 2. UserSettings.json ---
-Write-Host "[2/3] UserSettings.json (opcoes do menu)" -ForegroundColor White
+Write-Host "[2/4] UserSettings.json (opcoes do menu)" -ForegroundColor White
 if (-not (Test-Path $usPath)) {
     Write-Host "  !! UserSettings.json nao encontrado (jogo nunca rodou?) em $usPath" -ForegroundColor Red
 } else {
@@ -374,6 +452,27 @@ if (-not (Test-Path $usPath)) {
                 $usChanged += "$($opt.name) : $have -> $want"
                 $opt.value = $want
             }
+
+            # O arquivo guarda DOIS campos para opcoes de lista: `value` (o valor)
+            # e `index` (a posicao na lista `values`). Eles podem divergir, e o
+            # motor normaliza um para o outro no load. Escrevemos os dois de
+            # forma coerente para nao deixar o indice apontando para o valor
+            # anterior. (Ver docs/FINDINGS.md - o indice e um campo que o
+            # instalador antigo nunca escrevia.)
+            if ($opt.PSObject.Properties.Name -contains 'values' -and $opt.values) {
+                $idx = -1
+                $i = 0
+                foreach ($v in $opt.values) {
+                    if (([string]$v) -eq ([string]$want)) { $idx = $i; break }
+                    $i++
+                }
+                if ($idx -ge 0 -and $opt.PSObject.Properties.Name -contains 'index') {
+                    if ([int]$opt.index -ne $idx) {
+                        $usChanged += "$($opt.name).index : $($opt.index) -> $idx"
+                        $opt.index = $idx
+                    }
+                }
+            }
         }
     }
     if ($usChanged.Count -eq 0) {
@@ -389,7 +488,7 @@ if (-not (Test-Path $usPath)) {
 }
 
 # --- 3. CET config.json ---
-Write-Host "[3/3] cyber_engine_tweaks\config.json (patches do motor)" -ForegroundColor White
+Write-Host "[3/4] cyber_engine_tweaks\config.json (patches do motor)" -ForegroundColor White
 if (-not (Test-Path $cetPath)) {
     Write-Host "  !! CET nao instalado em $cetPath" -ForegroundColor Yellow
 } else {
@@ -411,6 +510,59 @@ if (-not (Test-Path $cetPath)) {
             Backup-File -Path $cetPath -Label "config.json" | Out-Null
             [System.IO.File]::WriteAllText($cetPath, ($cet | ConvertTo-Json -Depth 20))
             Write-Host "  -> escrito" -ForegroundColor Green
+        }
+    }
+}
+
+# --- 4. mod in-game ---
+# O painel le o profile.json que fica AO LADO do init.lua. O repositorio
+# continua sendo a fonte unica: o instalador copia os dois para a pasta de
+# mods do CET.
+if (-not $NoMod) {
+    Write-Host "[4/4] mod in-game (PerformanceProfile)" -ForegroundColor White
+    $modSrc  = Join-Path $PSScriptRoot "..\mod\PerformanceProfile"
+    $modDst  = Join-Path $root "bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile"
+    $profSrc = $profilePath
+    if (-not (Test-Path $modSrc)) {
+        Write-Host "  !! mod nao encontrado em $modSrc" -ForegroundColor Red
+    } elseif (-not (Test-Path $modDst)) {
+        Write-Host "  !! pasta de mods do CET nao encontrada em $modDst" -ForegroundColor Red
+    } else {
+        # limpar debris de sessoes anteriores (artefatos deste projeto).
+        # NUNCA em dry-run: o dry-run nao escreve nada.
+        if (-not $DryRun) {
+            Get-ChildItem $modDst -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '^performanceprofile-.*\.log$' -or $_.Name -eq 'PerformanceProfile.log' -or $_.Extension -in @('.tmp', '.bak') } |
+                ForEach-Object {
+                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    Write-Host "  removido debris: $($_.Name)" -ForegroundColor DarkGray
+                }
+        } else {
+            $debris = @(Get-ChildItem $modDst -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '^performanceprofile-.*\.log$' -or $_.Name -eq 'PerformanceProfile.log' -or $_.Extension -in @('.tmp', '.bak') })
+            if ($debris.Count -gt 0) {
+                Write-Host "  removeria {0} arquivo(s) de debris de sessao" -f $debris.Count -ForegroundColor Yellow
+            }
+        }
+
+        $items = @(
+            @{ From = (Join-Path $modSrc "init.lua"); To = (Join-Path $modDst "init.lua") },
+            @{ From = $profSrc;                            To = (Join-Path $modDst "profile.json") }
+        )
+        foreach ($it in $items) {
+            if (-not (Test-Path $it.From)) { continue }
+            $same = $false
+            if (Test-Path $it.To) {
+                $same = ((Get-FileHash $it.From -Algorithm SHA256).Hash -eq (Get-FileHash $it.To -Algorithm SHA256).Hash)
+            }
+            if ($same) {
+                Write-Host "  ja atualizado: $(Split-Path $it.To -Leaf)" -ForegroundColor DarkGray
+            } elseif ($DryRun) {
+                Write-Host "  copiaria: $(Split-Path $it.To -Leaf)" -ForegroundColor Yellow
+            } else {
+                Copy-Item $it.From $it.To -Force
+                Write-Host "  copiado: $(Split-Path $it.To -Leaf)" -ForegroundColor Green
+            }
         }
     }
 }
