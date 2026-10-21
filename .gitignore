@@ -1,0 +1,15 @@
+# Backups gerados pelo instalador
+backups/
+
+# Estado local do mod in-game
+mod/PerformanceProfile/settings.json
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+*.swp

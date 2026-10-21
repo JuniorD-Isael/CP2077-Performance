@@ -1,0 +1,168 @@
+{
+  "$schema": "./profile.schema.json",
+  "name": "Low-Spec 30 FPS",
+  "version": "1.0.0",
+  "target": {
+    "cpu": "AMD Ryzen 5 5500U (6C/12T, 2.1 GHz)",
+    "gpu": "AMD Radeon Vega 8 (integrated, shared VRAM)",
+    "ram": "20 GB",
+    "goal_fps": 30,
+    "note": "Perfil validado para GPU integrada sem VRAM dedicada. Preserva cabelo (Hair) e todos os mods instalados."
+  },
+  "preserve": {
+    "comment": "NUNCA alterar. Desligar quebra lightmaps ou removes cabelo (requisito do usuario).",
+    "userIni": {
+      "Developer/FeatureToggles": {
+        "DistantShadows": "True",
+        "GlobalIllumination": "True",
+        "Hair": "True"
+      }
+    },
+    "userSettings": {
+      "RayTracing": false,
+      "RayTracedReflections": false,
+      "RayTracedSunShadows": false,
+      "RayTracedLocalShadows": false
+    }
+  },
+  "userIni": {
+    "_comment": "Grupos extras que o ConfigOverhaul nao alcanca (bug: so cria Developer/Rendering/RayTracing).",
+    "Developer/FeatureToggles": {
+      "Antialiasing": "False",
+      "Bloom": "False",
+      "CharacterLightBlockers": "False",
+      "CharacterRimEnhancement": "False",
+      "CharacterSubsurfaceScattering": "False",
+      "ChromaticAberration": "False",
+      "ContactShadows": "False",
+      "DepthOfField": "False",
+      "DistantFog": "False",
+      "DistantGI": "False",
+      "DistantVolFog": "False",
+      "DynamicDecals": "False",
+      "FilmGrain": "False",
+      "ImageBasedFlares": "False",
+      "LocalShadows": "False",
+      "MotionBlur": "False",
+      "RainMap": "False",
+      "RuntimeTangentUpdate": "False",
+      "ScreenSpaceHeatHaze": "False",
+      "ScreenSpacePlanarReflection": "False",
+      "ScreenSpaceRain": "False",
+      "ScreenSpaceReflection": "False",
+      "ScreenSpaceUnderwater": "False",
+      "SSAO": "False",
+      "VolumetricClouds": "False",
+      "VolumetricFog": "False",
+      "Weather": "False"
+    },
+    "Rendering/AsyncCompute": {
+      "BuildDepthChain": "False",
+      "DynamicTexture": "False",
+      "Enable": "False",
+      "FlattenNormals": "False",
+      "LutGeneration": "False",
+      "RaytraceASBuild": "False",
+      "SSAO": "False"
+    },
+    "Rendering/FrostedGlass": {
+      "GlassUseMipChain": "False"
+    },
+    "Rendering": {
+      "RainMapProxySorting": "False",
+      "UseExperimentalVolFog": "False",
+      "UseSkinningLOD": "False"
+    },
+    "Rendering/Shadows": {
+      "CascadeFitToWorstCase": "False",
+      "CascadeUseBackfacesAsCullingPlanes": "False"
+    },
+    "Occlusion": {
+      "MultiFrustumUseGlobalOcclusion": "False"
+    },
+    "Streaming/Culling": {
+      "VisibilityQuery": "False"
+    },
+    "Streaming/Culling/AutoHideDistanceNear": {
+      "Enabled": "False"
+    },
+    "Streaming/Culling/SecondaryRefPoint": {
+      "Enabled": "False"
+    },
+    "Crowd": {
+      "ZCutoffEnabled": "False"
+    },
+    "Animation": {
+      "UseAnimSetupCaching": "False",
+      "EnableRefreshLocoWrappersOnUnlock": "False"
+    },
+    "Lipsync": {
+      "SyncToAudio": "False",
+      "UseAudioAdjustment": "False"
+    },
+    "Editor/Characters/Hair": {
+      "UseGlobalContactShadowsOnHair": "False",
+      "UseLocalContactShadowsOnHair": "False"
+    },
+    "Vehicle": {
+      "EnableAirResistane": "False",
+      "PhysXClampHugeImpacts": "False",
+      "PhysXClampHugeSpeeds": "False"
+    },
+    "SnapToTerrainIk": {
+      "Enabled": "False",
+      "FootLockEnabled": "False"
+    }
+  },
+  "userSettings": {
+    "_comment": "Opcoes do menu. Lidas de %LOCALAPPDATA%\\CD Projekt Red\\Cyberpunk 2077\\UserSettings.json. O jogo reescreve esse arquivo ao sair: aplicar com o jogo FECHADO.",
+    "values": {
+      "VolumetricCloudsQuality": "Low",
+      "GlobaIlluminationRange": "Low",
+      "ColorPrecision": "Low",
+      "AmbientOcclusion": "Low",
+      "ScreenSpaceReflectionsQuality": "Low",
+      "ShadowMeshQuality": "Low",
+      "CascadedShadowsRange": "Low",
+      "CascadedShadowsResolution": "Low",
+      "DistantShadowsResolution": "Low",
+      "VolumetricFogResolution": "Low",
+      "MaxDynamicDecals": "Low",
+      "SubsurfaceScatteringQuality": "Low",
+      "MirrorQuality": "Low",
+      "TextureQuality": "Low",
+      "LODPreset": "Low",
+      "Anisotropy": 1,
+      "CrowdDensity": "Low",
+      "DynamicResolutionScaling": true,
+      "DRS_TargetFPS": 30,
+      "DRS_MinResolution": 50,
+      "DRS_MaxResolution": 85,
+      "MaximumFPS_OnOff": true,
+      "MaximumFPS_Value": 30,
+      "NoSpatialAudio": true,
+      "EnableCloudSaves": false,
+      "EnableTelemetry": false,
+      "Cinematic": false,
+      "Overheads": false,
+      "HDDMode": "HDD",
+      "HDDMode2": "Off",
+      "VSync": "UI-Settings-Video-QualitySetting-Off",
+      "MotionBlur": "Off",
+      "FilmGrain": false,
+      "ChromaticAberration": false,
+      "DepthOfField": false,
+      "LensFlares": false,
+      "Vignette": false
+    }
+  },
+  "cetConfig": {
+    "_comment": "Patches do Cyber Engine Tweaks. Afetam o motor inteiro, nao so opcoes de menu.",
+    "patches": {
+      "disable_antialiasing": true,
+      "disable_async_compute": true,
+      "disable_vignette": true,
+      "disable_win7_vsync": true
+    }
+  }
+}
