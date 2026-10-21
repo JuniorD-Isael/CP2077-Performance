@@ -293,8 +293,15 @@ E:\CP2077-Performance\profile\lowspec-30fps.json
 > item **"MODS"**. Pelo caminho comum de Configurações elas não aparecem —
 > é assim que o Native Settings UI funciona, não um defeito.
 
-**4.** Na aba **"Low-Spec 30 FPS"**, ajuste as opções e clique
-**Apply Profile** para gravar `user.ini` e `UserSettings.json` (com backup).
+**4.** Na aba **"Low-Spec 30 FPS"**, ajuste as opções e veja o estado do
+perfil.
+
+> ⚠️ **O botão `Apply Profile` do painel não consegue gravar nada.** O
+> sandbox Lua do CET confina o `io` ao diretório do mod: `os.getenv` não
+> existe, e caminho absoluto ou com `..` são bloqueados. O painel não tem
+> como escrever no `user.ini` nem no `UserSettings.json` — isso foi
+> diagnosticado em runtime (ver `docs/FINDINGS.md` §13.1). **A aplicação é
+> feita pelo instalador**, com o jogo fechado.
 
 O painel **não** altera o motor ao vivo: o RED engine lê as opções no
 startup. Grave, reinicie o jogo.
@@ -645,12 +652,15 @@ E:\CP2077-Performance\profile\lowspec-30fps.json
 > item. They do not show up via the regular Settings path — that is how
 > Native Settings UI works, not a defect.
 
-**4.** On the **"Low-Spec 30 FPS"** tab, adjust the options and click
-**Apply Profile** to write `user.ini` and `UserSettings.json` (with
-backups).
+**4.** On the **"Low-Spec 30 FPS"** tab, adjust the options and inspect the
+profile state.
 
-The panel does **not** change the engine live: RED engine reads options at
-startup. Write, then restart the game.
+> ⚠️ **The panel's `Apply Profile` button cannot write anything.** The CET
+> Lua sandbox confines `io` to the mod's own directory: `os.getenv` does
+> not exist, and absolute or `..` paths are blocked. The panel has no way
+> to write `user.ini` or `UserSettings.json` — this was diagnosed at
+> runtime (see `docs/FINDINGS.md` §13.1). **The installer applies the
+> profile**, with the game closed.
 
 **5.** To iterate on the panel without restarting: press **F1** (CET
 overlay) and click **Reload all mods**.
