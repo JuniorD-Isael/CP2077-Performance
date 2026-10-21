@@ -440,3 +440,117 @@ mais com uma leitura única.
 - **A análise de xrefs** (Ghidra) continua pendente: o script
   `ReaExtractSettings.java` está escrito e nunca executou, porque o projeto
   Ghidra persistente ficou com 0 bytes.
+
+---
+
+## 13. Validação da 0.1.1-alpha — causa-raiz do painel e FPS real
+
+Uma sessão completa de jogo foi instrumentada com o perfil `0.1.1-alpha`
+aplicado (4 cvars novos + `EnableAirResistance` + `value`/`index`
+reconciliados) e com um mod de diagnóstico (`PerfProbe`) dentro do jogo.
+
+### 13.1 O painel in-game não pode aplicar — e nunca pôde
+
+O diagnóstico dentro do jogo devolveu, sem ambiguidade:
+
+```
+os.getenv e funcao                  -> nil
+os = clock date difftime remove rename time      (sem getenv, sem execute)
+_G                                    -> nil
+io.open caminho com .. (1 nivel)     -> nil (bloqueado)
+io.open ABSOLUTO jogo (engine/config) -> nil (bloqueado)
+io.open ABSOLUTO temp do usuario     -> nil (bloqueado)
+io.open CWD relativo                 -> gravou no CWD (CWD = diretorio do mod)
+```
+
+**O sandbox Lua do CET confina o `io` ao diretório do mod.** Três
+consequências:
+
+1. **`os.getenv` não existe.** `UserSettingsPath()` chamava
+   `os.getenv("LOCALAPPDATA")` → *"attempt to call a nil value"* → o
+   callback do botão Apply morria ali, **sem log e sem erro no log do
+   CET**. É a causa-raiz da morte silenciosa registrada 3 vezes na §11.
+2. **O caminho relativo com `..` também é bloqueado.** A correção de
+   "cinco → seis níveis" da §11 é insuficiente: nenhum caminho relativo
+   alcança fora do diretório do mod. O painel não tem como escrever o
+   `user.ini` de nenhuma forma.
+3. **`_G` é `nil`.** O ambiente do mod não expõe a tabela global, e
+   `getfenv` também não está disponível — o inventário do ambiente só é
+   possível por *sonda* de nomes conhecidos.
+
+**Conclusão de arquitetura (com evidência, não opinião):** o painel in-game
+não pode ser o aplicador. Ele pode (e deve) ser **coletor de intenção +
+medidor**; a aplicação tem de acontecer fora do jogo. O instalador é o
+aplicador; o painel pode gravar a intenção no próprio diretório para que
+um aplicador externo a consuma.
+
+### 13.2 FPS real: o alvo de 30 não é alcançado em gameplay
+
+O `PerfProbe` conta frames por segundo de parede (fronteiras de `os.time`)
+e CPU-segundos por segundo de parede (núcleos médios em uso).
+
+| contexto | amostras | min | p25 | **mediana** | p75 | p95 | max |
+|---|---|---|---|---|---|---|---|
+| menu principal | 203 | 0,1 | 28 | **29** | 30 | 30 | 31 |
+| **gameplay** | 1058 | 7 | 22 | **24** | 26 | 30 | 30 |
+
+**91,4%** dos segundos de gameplay ficaram abaixo de 30 FPS. E a GPU, na
+mesma janela:
+
+| métrica | min | p25 | mediana | p75 | p95 | max |
+|---|---|---|---|---|---|---|
+| GPU utilization % | 0 | 94 | **100** | 103 | 107 | 125 |
+| CPU (de 12 núcleos) | 0 | 3,2 | **5,1** | 6,0 | 9,0 | 15,1 |
+| VRAM compartilhada MB | 0 | 2467 | **2529** | 2601 | 2654 | 2754 |
+| RAM privado MB | 0 | 7472 | **7506** | 7566 | 7674 | 7781 |
+
+**72,3%** das amostras com GPU ≥ 95%.
+
+A leitura é direta: **a GPU está saturada em 100% e a CPU tem folga
+(mediana 5,1 de 12 núcleos).** O limite é custo de fragmento. Chegar a 30
+FPS exige reduzir carga de GPU, não de CPU — o que aponta para a mesma
+direção dos toggles de HUD e dos passes de *async compute* que faltam.
+
+> Nota: o `cpu_cores` do probe (mediana 1,0) mede o **tempo de CPU do
+> processo**, que é ~1 núcleo cheio; a métrica de 5,1 núcleos vem do
+> contador de processo do Windows, que inclui as threads do motor. As duas
+> não são comparáveis diretamente — a segunda é a que interessa.
+
+### 13.3 O que o motor de fato respeita
+
+Das 37 opções do perfil, **34 ficaram intactas** após a sessão. Três são
+inerentes, por motivos diferentes:
+
+| opção | perfil | no jogo | por quê |
+|---|---|---|---|
+| `EnableTelemetry` | `false` | `true` | o jogo reativa por política de conta |
+| `HDDMode` | `"On"` | `"Auto"` | **o motor computa o modo de disco** |
+| `HDDMode2` | `"Off"` | `"On"` | idem |
+
+`HDDMode` e `HDDMode2` são um achado novo: mesmo com `value` **e** `index`
+escritos de forma coerente pelo instalador, o motor sobrescreve os dois.
+O modo de disco é **derivado do armazenamento detectado**, não uma
+preferência do usuário. (O `HDDMode` que você viu como "Auto" na sessão
+anterior era o motor, não uma configuração.)
+
+> Isso também refuta a hipótese de `value` vs `index`: para estas duas
+> opções nenhum dos dois campos importa — o motor recalcula.
+
+### 13.4 O jogo não reescreve o settings quando não há delta
+
+Nesta sessão o `UserSettings.json` **não** aparece no diff de arquivos:
+o jogo o escreveu uma única vez, às 00:30:14 (pouco depois de subir, ao
+normalizar o estado em memória), e **não** ao encerrar — porque o estado
+em memória era idêntico ao arquivo. Na sessão anterior, em que você mudou
+opções dentro do jogo, o arquivo foi reescrito na saída.
+
+Confirma o modelo da §10.2: **a escrita de saída é um flush de memória,
+e só acontece quando há divergência.**
+
+### 13.5 Efeito dos 4 cvars novos: ainda não isolado
+
+Os 4 cvars (`DPL`, `ExposureScaleBuffer`, `ExtendedDuringSSR`, `HairClears`)
+foram aplicados e confirmados no `user.ini` desta sessão, mas **o efeito
+individual não foi isolado** — falta a contraprótese (rodar sem eles na
+mesma rota). É o experimento A/B pendente, e o que falta é uma rota
+jogável comparável, não instrumentação: a instrumentação está pronta.

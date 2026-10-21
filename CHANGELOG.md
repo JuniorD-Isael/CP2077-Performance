@@ -148,6 +148,26 @@ Sessão instrumentada de 19 minutos (1061 amostras):
   **descarrega a memória no exit**. Valor aplicado com o jogo fechado
   sobrevive; valor alterado por ferramenta com o jogo aberto é apagado.
 
+### Validação (segunda sessão, com o perfil 0.1.1-alpha)
+
+Sessão de 22 minutos com um mod de diagnóstico (`PerfProbe`) dentro do
+jogo, 628 amostras de processo e 1261 amostras de FPS:
+
+- **FPS em gameplay: mediana 24** (p25 22, p75 26, p95 30) — **91,4%** dos
+  segundos abaixo do alvo de 30 FPS.
+- **GPU: mediana 100%** (72,3% das amostras ≥ 95%), **CPU: mediana 5,1 de
+  12 núcleos**. O limite é custo de fragmento, não de CPU.
+- **34 das 37 opções** do perfil intactas. As 3 inertes: `EnableTelemetry`
+  (reativado por política de conta) e `HDDMode`/`HDDMode2` (o motor computa
+  o modo de disco a partir do armazenamento detectado, ignorando o
+  valor e o índice).
+- **Causa-raiz da morte silenciosa do botão Apply identificada:** o sandbox
+  Lua do CET confina o `io` ao diretório do mod — `os.getenv` não existe,
+  caminho absoluto e `..` são bloqueados, e `_G` é `nil`. O painel in-game
+  não tem como escrever no jogo. Ver `docs/FINDINGS.md` §13.1.
+- O painel le o `profile.json` corretamente (35 widgets registrados) e o
+  `PerfProbe` mede FPS de forma confiável.
+
 ### Pendências
 
 - A causa da morte silenciosa do botão Apply ainda não foi identificada —
