@@ -254,3 +254,189 @@ veio de leitura direta de config, decompilação do ConfigOverhaul, log do CET
 em runtime e varredura de strings do binário. A análise com xrefs (mapear a
 função C++ que aplica cada cvar) continua sendo o próximo passo possível,
 mas não é necessária para o perfil.
+
+---
+
+## 10. Validação em runtime — sessão medida de 19 minutos
+
+Uma sessão de jogo foi monitorada com amostragem de ~1 s (processo, GPU,
+VRAM, I/O) e com rastreamento de eventos de filesystem, para obter o
+comportamento real em vez de inferido.
+
+### 10.1 A camada de menu sobrevive a uma sessão inteira
+
+Das **37 opções** do perfil, **35** estavam exatamente como o perfil define
+depois da sessão. Das **13 opções de lista** em que o perfil diverge do
+default do jogo, **13 foram honradas** pelo motor:
+
+| opção | default do jogo | perfil | valor no jogo |
+|---|---|---|---|
+| CrowdDensity | High | Low | Low |
+| TextureQuality | High | Low | Low |
+| ShadowMeshQuality | Medium | Low | Low |
+| CascadedShadowsRange | Medium | Low | Low |
+| VolumetricFogResolution | Medium | Low | Low |
+| VolumetricCloudsQuality | Medium | Off | Off |
+| MaxDynamicDecals | Medium | Low | Low |
+| SubsurfaceScatteringQuality | Medium | Low | Low |
+| LODPreset | Medium | Low | Low |
+| HDDMode2 | Auto | Off | Off |
+| MotionBlur | Low | Off | Off |
+| HDDMode | Auto | On | On |
+
+As outras 8 opções de lista do perfil já coincidem com o **piso** que o
+esquema do jogo permite (`ColorPrecision`=Medium é o mínimo,
+`GlobaIlluminationRange`=High é o mínimo, `Anisotropy`=1 é o mínimo).
+
+Duas exceções, ambas reais e esperadas:
+
+- **`EnableTelemetry: false` é inefetivo.** O jogo o reativa por política de
+  conta. Nenhuma ferramenta externa vence isso.
+- **`HDDMode`** — durante a medição o valor estava "Auto" porque foi alterado
+  dentro do próprio jogo, não por falha de aplicação.
+
+### 10.2 O modelo correto de "reversão silenciosa"
+
+A §1.1 descrevia o jogo como "revertendo" valores inválidos. A evidência de
+runtime mostra um mecanismo mais preciso:
+
+1. **No load**, o jogo carrega o `UserSettings.json`, **valida** cada opção
+   contra o esquema e mantém em memória o valor aceito.
+2. **No exit**, o jogo **descarrega a memória** para o arquivo.
+
+Consequência prática: um valor aplicado com o jogo **fechado** sobrevive
+intacto; um valor alterado por ferramenta com o jogo **aberto** é apagado na
+saída. Isso não é normalização periódica — é flush de estado.
+
+> O jogo também escreve o `UserSettings.json` **durante** a sessão (observado
+> às 23:42:40 numa sessão que durou até 23:48:51). Qualquer ferramenta
+> externa que escreva nesse arquivo pode ser atropelada a qualquer momento.
+
+### 10.3 O que o motor realmente lê
+
+O log do CET expõe o hook `HookGameOptionInit(struct GameOption *)` e
+imprime, para cada opção registrada, o path no formato `Grupo/Feature/Nome`.
+São **13** settings ocultos — ou seja, 13 opções que o motor registra e que
+portanto o `user.ini` controla de fato:
+
+```
+Developer/FeatureToggles/Antialiasing
+Developer/FeatureToggles/ScreenSpaceReflection
+Rendering/AsyncCompute/BuildDepthChain
+Rendering/AsyncCompute/DPL
+Rendering/AsyncCompute/DynamicTexture
+Rendering/AsyncCompute/Enable
+Rendering/AsyncCompute/ExposureScaleBuffer
+Rendering/AsyncCompute/ExtendedDuringSSR
+Rendering/AsyncCompute/FlattenNormals
+Rendering/AsyncCompute/HairClears
+Rendering/AsyncCompute/LutGeneration
+Rendering/AsyncCompute/RaytraceASBuild
+Rendering/AsyncCompute/SSAO
+```
+
+O perfil (antes desta versão) cobria 9. Os 4 ausentes —
+`DPL`, `ExposureScaleBuffer`, `ExtendedDuringSSR` e `HairClears` — foram
+adicionados: são passes de *async compute*, custo puro numa GPU integrada.
+
+**Modelo de armazenamento:** o executável **não** guarda o path completo.
+`"Developer/FeatureToggles/Antialiasing"` não existe como string; existem
+`"Developer/FeatureToggles"` e `"Antialiasing"` como tokens separados, e o
+motor compõe o path em runtime. Por isso a validação de chaves procura o
+**token isolado** do nome da chave.
+
+### 10.4 Chave de cvar que não existe: erro de digitação herdado
+
+`EnableAirResistane` **não existe** nem como token ASCII, nem como UTF-16,
+nem em qualquer arquivo do jogo. O nome real no binário é
+`EnableAirResistance` (contexto: `base\gameplay\vehicles\curves\drive_helpers.curveset`).
+O perfil usava a grafia errada, **herdada da `FeatureList` do
+ConfigOverhaul** — que é uma lista transcrita de um app .NET decompilado e
+nunca confrontada com o binário.
+
+Corregido nesta versão, e o instalador agora **valida toda chave de cvar
+contra o executável** antes de escrever.
+
+> **Limitação honesta:** presença no binário prova que o *nome* existe, não
+> que o motor o leia como cvar. `EnableAirResistance`, por exemplo, aparece
+> na região de curvas de física do veículo — pode ser propriedade de curva
+> em vez de cvar. Só a análise de xrefs (mapear a função C++ que registra
+> cada `GameOption`) fecha essa questão.
+
+### 10.5 O `user.ini` original do jogo traz uma chave inexistente
+
+O `user.ini` que o próprio jogo entrega traz:
+
+```ini
+[Rendering/FrostedGlass]
+;Eats 2-4 FPS
+GlassUseMipChain = False
+```
+
+`GlassUseMipChain` **não existe no executável** (só `m_hasMipchain` e
+`m_mipChain`). É a única das 57 chaves do perfil ausente do binário, e é
+mantida no perfil com um aviso explícito do instalador: o motor pode estar
+ignorando essa chave em silêncio desde sempre.
+
+### 10.6 Comportamento de arquivos observado
+
+| quando | arquivo | por quê |
+|---|---|---|
+| a cada ~2-3 min | `red4ext/plugins/Codeware/Persistent/ScriptableServiceContainer.dat` | estado persistente do Codeware |
+| a cada ~1-2 min | `%LOCALAPPDATA%\...\cache\GamePipelineLibrary.cache` | cache de pipeline do jogo |
+| ao abrir o overlay | `cyber_engine_tweaks/layout.ini` | layout do overlay do CET |
+| ao trocar câmera | `mods/immersive_third_person/settings.lua` | preferências do mod de terceira pessoa |
+| durante a sessão | `%LOCALAPPDATA%\...\UserSettings.json` | flush de settings |
+| na saída | `UserSettings.json`, `persistent.json`, `bindings.json`, `menu_mod/settings.json` | flush final |
+| na saída | `scripting.log`, `cyber_engine_tweaks.log`, `nativeSettings.log`, logs do RED4ext | logs bufferizados do CET |
+| na saída | `Cyberpunk2077.exe-<stamp>-<pid>-<tid>.txt`, `REDEngineErrorReporter.exe-...txt` **removidos** | arquivos temporários do error reporter, criados no startup |
+
+### 10.7 Medições (19 min de gameplay)
+
+| métrica | p25 | mediana | p95 | max |
+|---|---|---|---|---|
+| GPU utilization % | 59 | **95** | 106 | 112 |
+| CPU (de 12 núcleos) | 2,3 | 4,2 | 8,6 | 14,2 |
+| VRAM dedicada MB | 398 | 407 | 419 | 424 |
+| VRAM compartilhada MB | 2.303 | 2.358 | 2.504 | 2.609 |
+| RAM privado MB | 7.139 | 7.205 | 7.397 | 7.481 |
+
+**50,6%** das amostras com GPU ≥ 95%. CPU na mediana ocupa 4,2 de 12 núcleos.
+O gargalo é a GPU integrada, confirmado com densidade de amostragem — não
+mais com uma leitura única.
+
+---
+
+## 11. Bugs encontrados e corrigidos nesta versão
+
+| # | bug | impacto | correção |
+|---|---|---|---|
+| 1 | Painel escrevia `user.ini` com **cinco** níveis `..` a partir do diretório do mod | a camada de cvars **nunca** foi aplicada pelo painel (3 falhas registradas em log) | corrigido para seis níveis |
+| 2 | O painel escrevia o `UserSettings.json` mas **nunca** a camada de patches do CET | o painel aplicava 2 das 3 camadas | o painel agora aplica as três, lendo o perfil |
+| 3 | O painel tinha **8 chaves a menos** que o perfil (`DRS_MaxResolution`, `VSync`, `MotionBlur`, `FilmGrain`, `ChromaticAberration`, `DepthOfField`, `LensFlares`, `Vignette`) | "fonte única de verdade" era falso | o painel lê `profile.json`; os valores vêm do perfil |
+| 4 | O instalador escrevia `value` mas **nunca** `index` nas opções de lista | `value` e `index` podiam divergir (ex.: `HDDMode` value="On", index=2/"Auto") | o instalador reconcilia os dois campos |
+| 5 | `EnableAirResistane` no perfil | cvar inerte (nome inexistente) | corrigido para `EnableAirResistance` |
+| 6 | Nenhuma validação das chaves de cvar | erros de digitação passavam despercebidos | o instalador valida as 57 chaves contra o executável |
+| 7 | `powershell -File Install-Profile.ps1` **não funcionava** | o comando que o README documenta quebrava: com `[CmdletBinding()]`, o PowerShell 5.1 não popula `$PSScriptRoot` nos defaults do `param` | default resolvido no corpo do script |
+| 8 | `profile/profile.schema.json` referenciado e inexistente | referência `$schema` quebrada | schema criado e o perfil validado contra ele |
+| 9 | Dry-run do instalador apagava arquivos | violava o contrato de "não escreve nada" | a limpeza só ocorre sem `-DryRun` |
+
+---
+
+## 12. Pendências conhecidas
+
+- **A morte silenciosa do botão Apply ainda não tem causa identificada.** O
+  log do painel para logo após a mensagem de falha do `user.ini`, sem linha
+  seguinte e sem erro Lua no log do CET. A nova versão envolve o Apply em
+  `pcall` e grava o erro em `performanceprofile-*.log.erros`; um mod de
+  diagnóstico (`PerfProbe`) testa `os.getenv`, `io.open` absoluto,
+  `json.decode` do arquivo real e os dois caminhos relativos. **Precisa de
+  um boot do jogo para ser concluído.**
+- **`value` vs `index`:** o instalador agora escreve os dois de forma
+  coerente, mas qual dos dois o motor lê em runtime ainda não foi provado.
+- **Os 25 toggles de HUD** do schema (`minimap`, `object_markers`,
+  `npc_nameplates`, `quest_tracker`, …) não estão no perfil. São o maior
+  ganho de GPU de risco zero que resta.
+- **A análise de xrefs** (Ghidra) continua pendente: o script
+  `ReaExtractSettings.java` está escrito e nunca executou, porque o projeto
+  Ghidra persistente ficou com 0 bytes.

@@ -81,4 +81,81 @@ que motivam não usá-lo como base:
   completou — os analisadores `StackVariableAnalyzer` e `EntryPointAnalyzer` são
   inviáveis nesse alvo de 60 MB. Nenhuma conclusão do projeto depende dela.
 
+## [0.1.1-alpha] — 2026-10-21
+
+Alpha de correção, derivada de uma sessão de jogo instrumentada (19 min de
+amostragem de ~1 s + rastreamento de eventos de filesystem). Todos os itens
+abaixo têm evidência em `docs/FINDINGS.md` seções 10 a 12.
+
+### Corrigido
+
+Painel in-game (`mod/PerformanceProfile`):
+
+- O `user.ini` era procurado com **cinco** níveis `..` a partir do diretório
+  do mod; a raiz do jogo está **seis** níveis acima. A camada de cvars do
+  motor — a de maior impacto — **nunca** foi aplicada pelo painel (três
+  falhas registradas em log entre 22:12 e 23:38).
+- O painel aplicava só 2 das 3 camadas. Agora escreve também
+  `cyber_engine_tweaks/config.json`.
+- O painel tinha uma cópia hardcoded do perfil com **8 chaves a menos** que o
+  `profile/lowspec-30fps.json`. Passou a ler o `profile.json` — a fonte
+  única de verdade agora é real.
+- O botão Apply passa a ser envolvido em `pcall` e grava o erro em
+  `performanceprofile-*.log.erros` em vez de morrer em silêncio.
+
+Instalador (`installer/Install-Profile.ps1`):
+
+- `powershell -File Install-Profile.ps1` **não funcionava**: com
+  `[CmdletBinding()]`, o PowerShell 5.1 não popula `$PSScriptRoot` nos
+  defaults do `param`. O default passou a ser resolvido no corpo do script.
+- O `-DryRun` apagava arquivos de debris. A limpeza só ocorre sem `-DryRun`.
+- As opções de lista agora têm `value` **e** `index` reconciliados. Antes o
+  instalador escrevia só `value`, e os dois campos podiam divergir (ex.:
+  `HDDMode` com `value="On"` e `index=2`, que aponta para "Auto").
+
+### Adicionado
+
+- **Validação das chaves de cvar contra o executável**: o instalador extrai
+  os tokens ASCII do `Cyberpunk2077.exe` e confere as 57 chaves do perfil
+  (~2 s). Antes, erros de digitação passavam despercebidos — foi assim que
+  `EnableAirResistane` entrou no perfil.
+- **4 cvars que o motor lê e o perfil ignorava**: `DPL`,
+  `ExposureScaleBuffer`, `ExtendedDuringSSR` e `HairClears`, todos em
+  `Rendering/AsyncCompute` (passes de async compute — custo puro numa GPU
+  integrada). Descobertos pelo hook `HookGameOptionInit` do CET.
+- `profile/profile.schema.json`: o schema que o perfil referenciava e não
+  existia. O perfil passa a ser validado contra ele.
+- Passo `[4/4]` no instalador: sincroniza o mod e o `profile.json` para a
+  pasta de mods do CET, e limpa os logs de sessões anteriores.
+- Novas flags: `-SkipBinaryCheck` (pula o scan do executável) e `-NoMod`
+  (não sincroniza o mod in-game).
+
+### Mudado
+
+- `EnableAirResistane` → `EnableAirResistance`. A grafia antiga não existe
+  em nenhum lugar do jogo; foi herdada da `FeatureList` do ConfigOverhaul.
+- Versão do perfil: `0.1.0` → `0.1.1-alpha`.
+
+### Validação
+
+Sessão instrumentada de 19 minutos (1061 amostras):
+
+- **35 das 37 opções** do perfil intactas ao final da sessão; **13 das 13**
+  opções de lista que divergem do default do jogo foram honradas.
+- GPU: mediana 95%, p95 106%. CPU: mediana 4,2 de 12 núcleos. VRAM
+  compartilhada: p95 2.504 MB. O gargalo é a GPU integrada.
+- O modelo de "reversão silenciosa" foi refinado: o jogo **valida no load** e
+  **descarrega a memória no exit**. Valor aplicado com o jogo fechado
+  sobrevive; valor alterado por ferramenta com o jogo aberto é apagado.
+
+### Pendências
+
+- A causa da morte silenciosa do botão Apply ainda não foi identificada —
+  exige um boot do jogo para o diagnóstico (`PerfProbe`) rodar.
+- Não está provado se o motor lê `value` ou `index` em runtime.
+- Os ~25 toggles de HUD do schema continuam fora do perfil.
+- A análise de xrefs do Ghidra (mapa de cvar → função C++) continua
+  pendente: o script existe, o banco de dados não.
+
+[0.1.1-alpha]: https://github.com/CP2077-Performance/CP2077-Performance/compare/v0.1.0...v0.1.1_alpha
 [0.1.0]: https://github.com/CP2077-Performance/CP2077-Performance/releases/tag/v0.1.0

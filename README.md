@@ -5,7 +5,7 @@
 Perfil de performance para **Cyberpunk 2077** em hardware de baixo desempenho.
 Objetivo: **30 FPS jogáveis** em GPU integrada, com nada de mods removidos.
 
-**Versão atual: `0.1.0`** — veja o [CHANGELOG](CHANGELOG.md).
+**Versão atual: `0.1.1-alpha`** — veja o [CHANGELOG](CHANGELOG.md).
 
 Desenvolvido e validado em: **AMD Ryzen 5 5500U (6C/12T, 2,1 GHz) + AMD Radeon
 Vega 8 integrada (VRAM compartilhada) + 20 GB RAM**, com o jogo na versão
@@ -65,6 +65,7 @@ bugs encontrados nos mods existentes — em [`docs/FINDINGS.md`](docs/FINDINGS.m
 | Efeito | Como |
 |---|---|
 | Reduz carga de fragmento (GPU) | Nuvens volumétricas `Off`, GI e sombras no mínimo aceito, reflexos e decals `Low` |
+| Elimina passes de async compute (GPU) | 11 chaves de `Rendering/AsyncCompute` desligadas — passes assíncronos são custo puro numa GPU integrada |
 | Reduz custo de CPU | `NoSpatialAudio`, densidade de multidão `Low`, culling de streaming, cache de setup de animação, lip sync simplificado |
 | Reduz largura de banda de textura (VRAM) | Anisotropia `1`, `TextureQuality=Low`, `LODPreset=Low` |
 | Adapta a resolução ao frame time | Dynamic Resolution Scaling ligado, piso de 50% |
@@ -233,7 +234,8 @@ cd E:\CP2077-Performance
 ```
 
 A saída mostra cada alteração, confirma que os valores conferem com o
-schema do jogo, e cria nada.
+schema do jogo, **confere as 57 chaves de cvar contra o executável**
+(≈2 s) e não cria nada.
 
 **4.** Aplique:
 
@@ -241,7 +243,20 @@ schema do jogo, e cria nada.
 .\installer\Install-Profile.ps1
 ```
 
+Isso aplica as três camadas e sincroniza o mod in-game (o `init.lua` e o
+`profile.json`) na pasta de mods do CET.
+
 **5.** Reinicie o jogo.
+
+**Flags úteis:**
+
+| flag | efeito |
+|---|---|
+| `-DryRun` | mostra o que seria alterado, sem escrever nada |
+| `-Restore` | reverte a partir do backup mais recente |
+| `-Force` | não falha se o jogo estiver rodando (apenas avisa) |
+| `-SkipBinaryCheck` | pula a validação das chaves de cvar contra o executável |
+| `-NoMod` | não sincroniza o mod in-game |
 
 **Desfazer:**
 
@@ -256,12 +271,19 @@ Restaura a partir do backup mais recente em `backups/<timestamp>/`.
 
 ### 5.2 Painel in-game (opcional)
 
-**1.** Copie o mod para a pasta de mods do CET:
+**1.** Sincronize o mod para a pasta de mods do CET — o instalador faz isso
+automaticamente no passo 4. Se preferir fazer manualmente, copie **os dois**
+arquivos:
 
 ```
-E:\CP2077-Performance\mod\PerformanceProfile\
-  →  <jogo>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\
+E:\CP2077-Performance\mod\PerformanceProfile\init.lua
+  →  <jogo>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\init.lua
+E:\CP2077-Performance\profile\lowspec-30fps.json
+  →  <jogo>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\profile.json
 ```
+
+> O painel lê os valores do `profile.json`. Sem ele, o painel não registra
+> nada — o repositório continua sendo a fonte única de verdade.
 
 **2.** Reinicie o jogo.
 
@@ -326,6 +348,7 @@ Use o **Game Bar do Windows (Win+G)** durante o jogo para ver o FPS absoluto.
 ```
 CP2077-Performance/
 ├── profile/lowspec-30fps.json     fonte única de verdade (o perfil)
+├── profile/profile.schema.json    schema do formato de perfil (JSON Schema)
 ├── installer/Install-Profile.ps1  aplicador (dry-run / apply / restore)
 ├── mod/PerformanceProfile/        painel in-game (Lua + Native Settings UI)
 ├── docs/
@@ -396,6 +419,7 @@ bugs found in existing mods — in [`docs/FINDINGS.md`](docs/FINDINGS.md).
 | Effect | How |
 |---|---|
 | Cuts fragment cost (GPU) | Volumetric clouds `Off`, GI and shadows at the lowest accepted value, reflections and decals `Low` |
+| Removes async compute passes (GPU) | 11 keys under `Rendering/AsyncCompute` off — async passes are pure overhead on an integrated GPU |
 | Cuts CPU cost | `NoSpatialAudio`, crowd density `Low`, streaming culling, animation setup caching, simplified lip sync |
 | Cuts texture bandwidth (VRAM) | Anisotropy `1`, `TextureQuality=Low`, `LODPreset=Low` |
 | Adapts resolution to frame time | Dynamic Resolution Scaling on, 50% floor |
@@ -562,8 +586,8 @@ cd E:\CP2077-Performance
 .\installer\Install-Profile.ps1 -DryRun
 ```
 
-The output lists every change, confirms the values match the game's schema,
-and creates nothing.
+The output lists every change, confirms that the values match the game's schema,
+**checks the 57 cvar keys against the executable** (~2 s) and writes nothing.
 
 **4.** Apply:
 
@@ -571,7 +595,20 @@ and creates nothing.
 .\installer\Install-Profile.ps1
 ```
 
+This applies the three layers and syncs the in-game mod (the `init.lua` and
+the `profile.json`) into the CET mods folder.
+
 **5.** Restart the game.
+
+**Useful flags:**
+
+| flag | effect |
+|---|---|
+| `-DryRun` | shows what would change, writing nothing |
+| `-Restore` | reverts from the most recent backup |
+| `-Force` | does not fail if the game is running (only warns) |
+| `-SkipBinaryCheck` | skips the cvar key check against the executable |
+| `-NoMod` | does not sync the in-game mod |
 
 **To undo:**
 
@@ -586,12 +623,19 @@ Restores from the most recent backup in `backups/<timestamp>/`.
 
 ### 5.2 In-game panel (optional)
 
-**1.** Copy the mod into CET's mods folder:
+**1.** Sync the mod into the CET mods folder — the installer does this
+automatically in step 4. If you prefer to do it by hand, copy **both**
+files:
 
 ```
-E:\CP2077-Performance\mod\PerformanceProfile\
-  →  <game>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\
+E:\CP2077-Performance\mod\PerformanceProfile\init.lua
+  →  <game>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\init.lua
+E:\CP2077-Performance\profile\lowspec-30fps.json
+  →  <game>\bin\x64\plugins\cyber_engine_tweaks\mods\PerformanceProfile\profile.json
 ```
+
+> The panel reads the values from `profile.json`. Without it the panel
+> registers nothing — the repository remains the single source of truth.
 
 **2.** Restart the game.
 
@@ -657,6 +701,7 @@ Use the **Windows Game Bar (Win+G)** during the game to see absolute FPS.
 ```
 CP2077-Performance/
 ├── profile/lowspec-30fps.json     single source of truth (the profile)
+├── profile/profile.schema.json    schema of the profile format (JSON Schema)
 ├── installer/Install-Profile.ps1  applier (dry-run / apply / restore)
 ├── mod/PerformanceProfile/        in-game panel (Lua + Native Settings UI)
 ├── docs/
