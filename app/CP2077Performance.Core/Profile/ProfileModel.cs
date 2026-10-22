@@ -22,13 +22,33 @@ public sealed class ProfileTarget
 }
 
 public sealed class ProfileVariant
-{    public string Label { get; init; } = "";
+{
+    public string Label { get; init; } = "";
 
     public string? Description { get; init; }
 
+    /// <summary>
+    /// Resumo do efeito da variante, em linguagem corrente. Ausente em variantes
+    /// gravadas no formato anterior, que continuam sendo aplicadas.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>Destaques do efeito da variante, em linguagem corrente.</summary>
+    public IReadOnlyList<string> Highlights { get; init; } = Array.Empty<string>();
+
     public IReadOnlyDictionary<string, ProfileValue> UserSettingsValues { get; init; } =
         new Dictionary<string, ProfileValue>();
+
+    /// <summary>
+    /// Chaves de cvar da variante, por secao do arquivo do motor. Uma variante
+    /// pode alcancar as duas camadas: menu e motor.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> UserIni { get; init; } =
+        new Dictionary<string, IReadOnlyDictionary<string, string>>();
 }
+
+/// <summary>Chave de cvar com o valor que ela carrega.</summary>
+public sealed record UserIniKey(string Section, string Key, string Value);
 
 /// <summary>
 /// Perfil de performance: as tres camadas de configuracao do jogo.
@@ -80,40 +100,8 @@ public sealed class ProfileModel
     // ---------------------------------------------------------------- cvars
 
     /// <summary>Cvars do motor, por secao do user.ini.</summary>
-    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> UserIni
-    {
-        get
-        {
-            var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
-            if (Root["userIni"] is not JsonObject sections)
-            {
-                return result;
-            }
-
-            foreach (var (section, node) in sections)
-            {
-                if (section.StartsWith('_') || node is not JsonObject keys)
-                {
-                    continue;
-                }
-
-                var map = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var (key, value) in keys)
-                {
-                    if (key.StartsWith('_'))
-                    {
-                        continue;
-                    }
-
-                    map[key] = value is null ? "" : JsonValueOf(value);
-                }
-
-                result[section] = map;
-            }
-
-            return result;
-        }
-    }
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> UserIni =>
+        ReadSections(Root["userIni"] as JsonObject);
 
     /// <summary>Chaves de cvar que nunca podem ser alteradas, por secao.</summary>
     public IReadOnlyDictionary<string, IReadOnlySet<string>> PreservedUserIni
@@ -197,7 +185,10 @@ public sealed class ProfileModel
                 {
                     Label = obj["label"]?.GetValue<string>() ?? id,
                     Description = obj["description"]?.GetValue<string>(),
+                    Summary = obj["summary"]?.GetValue<string>(),
+                    Highlights = ReadHighlights(obj["highlights"]),
                     UserSettingsValues = ReadValues(obj["userSettings"]?["values"] as JsonObject),
+                    UserIni = ReadSections(obj["userIni"] as JsonObject),
                 };
             }
 
@@ -278,6 +269,61 @@ public sealed class ProfileModel
             }
 
             result[key] = ProfileValue.FromJson(node);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Le um mapa de secoes do arquivo do motor, ignorando os campos que
+    /// comecam por '_', que sao comentarios do proprio perfil.
+    /// </summary>
+    private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ReadSections(JsonObject? sections)
+    {
+        var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        if (sections is null)
+        {
+            return result;
+        }
+
+        foreach (var (section, node) in sections)
+        {
+            if (section.StartsWith('_') || node is not JsonObject keys)
+            {
+                continue;
+            }
+
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (key, value) in keys)
+            {
+                if (key.StartsWith('_'))
+                {
+                    continue;
+                }
+
+                map[key] = value is null ? "" : JsonValueOf(value);
+            }
+
+            result[section] = map;
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<string> ReadHighlights(JsonNode? node)
+    {
+        if (node is not JsonArray array)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        foreach (var item in array)
+        {
+            if (item is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text))
+            {
+                result.Add(text);
+            }
         }
 
         return result;

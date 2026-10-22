@@ -1,7 +1,7 @@
 {
   "$schema": "./profile.schema.json",
   "name": "Low-Spec 30 FPS",
-  "version": "0.1.1-alpha",
+  "version": "0.2.0-alpha",
   "target": {
     "cpu": "AMD Ryzen 5 5500U (6C/12T, 2.1 GHz)",
     "gpu": "AMD Radeon Vega 8 (integrated, shared VRAM)",
@@ -169,38 +169,5 @@
       "disable_win7_vsync": true
     }
   },
-  "variants": {
-    "hudMinimal": {
-      "label": "HUD minima",
-      "description": "Reduz a interface do jogo: minimapa, marcadores, nomes, barra de vida, rastreador de missoes e afins. Cada elemento desligado e um draw call a menos na GPU, que e o gargalo deste hardware.",
-      "userSettings": {
-        "values": {
-          "minimap": false,
-          "CrowdsOnMinimap": false,
-          "object_markers": false,
-          "npc_nameplates": false,
-          "npc_names": false,
-          "npc_healthbar": false,
-          "healthbar": false,
-          "stamina_oxygen": false,
-          "wanted_level": false,
-          "quest_tracker": false,
-          "hud_markers": false,
-          "input_hints": false,
-          "ammo_counter": false,
-          "crosshairs": false,
-          "crouch_indicator": false,
-          "action_buttons": false,
-          "activity_log": false,
-          "vehicle_hud": false,
-          "johnny_hud": false,
-          "DamageDigitsInterpolation": false,
-          "HitIndicator": false,
-          "FluffReduction": true,
-          "PostProcessingReduction": true,
-          "Sieja": true
-        }
-      }
-    }
-  }
+  "variants": {}
 }

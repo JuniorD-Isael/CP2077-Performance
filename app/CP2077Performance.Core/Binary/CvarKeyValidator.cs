@@ -17,12 +17,18 @@ namespace CP2077Performance.Core.Binary;
 public sealed class CvarKeyValidator
 {
     /// <summary>
-    /// Chaves conhecidas por nao existirem no executavel. Vem do proprio
-    /// <c>user.ini</c> que o jogo entrega, e esta documentada em
-    /// <c>docs/FINDINGS.md</c> secao 10.4.
+    /// Chaves conhecidas por nao aparecerem como token isolado no executavel:
+    /// <c>GlassUseMipChain</c> vem do <c>user.ini</c> original do jogo
+    /// (<c>docs/FINDINGS.md</c> secao 10.4) e <c>ExtendedDuringSSR</c> e
+    /// confirmada em runtime pelo hook <c>HookGameOptionInit</c> do CET
+    /// (<c>docs/FINDINGS.md</c> secao 10.3).
     /// </summary>
     public static readonly IReadOnlySet<string> KnownAbsentKeys =
-        new HashSet<string>(StringComparer.Ordinal) { "GlassUseMipChain" };
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "GlassUseMipChain",
+            "ExtendedDuringSSR",
+        };
 
     public const string KnownAbsentDocumentation = "docs/FINDINGS.md secao 10.4";
 

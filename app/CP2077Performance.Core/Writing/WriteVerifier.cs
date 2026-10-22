@@ -64,7 +64,8 @@ public static class WriteVerifier
 
     public static WriteVerificationResult VerifyIni(
         string text,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> desired)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> desired,
+        IReadOnlyList<UserIniKey>? removedKeys = null)
     {
         var items = new List<WriteVerificationItem>();
 
@@ -79,6 +80,24 @@ public static class WriteVerifier
                     $"{section}/{key}",
                     ok,
                     ok ? null : $"esperava {value}, encontrei {current ?? "(chave ausente)"}"));
+            }
+        }
+
+        if (removedKeys is not null)
+        {
+            foreach (var removed in removedKeys)
+            {
+                var current = ReadIniValue(text, removed.Section, removed.Key);
+
+                // ausente: removida, como deveria. presente com outro valor: o
+                // usuario ajustou a mao e a remocao foi recusada de proposito.
+                // presente com o valor da variante: a remocao falhou.
+                var ok = current is null || !string.Equals(current, removed.Value, StringComparison.Ordinal);
+                items.Add(new WriteVerificationItem(
+                    "Motor",
+                    $"{removed.Section}/{removed.Key}",
+                    ok,
+                    ok ? null : $"a chave deveria ter sido removida e ainda vale {removed.Value}"));
             }
         }
 

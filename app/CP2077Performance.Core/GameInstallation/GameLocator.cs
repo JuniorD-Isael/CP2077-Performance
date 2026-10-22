@@ -28,9 +28,13 @@ public sealed class GameLocator
     /// <summary>Nome do painel in-game que existiu em versoes anteriores.</summary>
     public const string LegacyPanelDirectoryName = "PerformanceProfile";
 
-    public GameLocator(string gameRoot)
+    /// <summary>Nome do mod de HUD que existiu em versoes anteriores e saiu para projeto proprio.</summary>
+    public const string LegacyHudModDirectoryName = "CP2077Performance";
+
+    public GameLocator(string gameRoot, string? userDataRoot = null)
     {
         GameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
+        UserDataRoot = userDataRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
     public string GameRoot { get; }
@@ -45,6 +49,8 @@ public sealed class GameLocator
 
     public string LegacyPanelPath => Path.Combine(CetModsPath, LegacyPanelDirectoryName);
 
+    public string LegacyHudModPath => Path.Combine(CetModsPath, LegacyHudModDirectoryName);
+
     public IReadOnlyList<string> GameSchemaPaths => new[]
     {
         Path.Combine(GameRoot, GameSchemaRelativePath),
@@ -52,8 +58,7 @@ public sealed class GameLocator
     };
 
     /// <summary>Raiz de dados do usuario. Derivada do sistema, nao da loja.</summary>
-    public string UserDataRoot { get; } =
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    public string UserDataRoot { get; }
 
     /// <summary>Raiz de dados da ferramenta, independente da instalacao do jogo.</summary>
     public static string DefaultToolDataRoot =>

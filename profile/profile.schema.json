@@ -98,7 +98,7 @@
     },
     "variants": {
       "type": "object",
-      "description": "Variantes opcionais, ligadas pelo usuario. Desligada, uma variante devolve as opcoes que ela afeta ao default_value do esquema do jogo.",
+      "description": "Variantes opcionais, ligadas pelo usuario. Uma variante alcanca as duas camadas: opcoes de menu e chaves de cvar. Desligada, uma variante devolve as opcoes que ela afeta ao default_value do esquema do jogo, e remove as chaves de cvar que ela tinha acrescentado.",
       "additionalProperties": {
         "type": "object",
         "required": ["label", "userSettings"],
@@ -106,6 +106,23 @@
         "properties": {
           "label": { "type": "string" },
           "description": { "type": "string" },
+          "summary": {
+            "type": "string",
+            "description": "Resumo do efeito da variante, em linguagem corrente."
+          },
+          "highlights": {
+            "type": "array",
+            "description": "Destaques do efeito da variante, em linguagem corrente.",
+            "items": { "type": "string" }
+          },
+          "userIni": {
+            "type": "object",
+            "description": "Chaves de cvar da variante, por secao do arquivo do motor.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": { "type": ["string", "number", "boolean"] }
+            }
+          },
           "userSettings": {
             "type": "object",
             "required": ["values"],

@@ -30,7 +30,23 @@ public sealed record MenuWriteResult(
 /// </remarks>
 public sealed class MenuOptionsWriter
 {
-    public MenuWriteResult Plan(string text, IReadOnlyDictionary<string, ProfileValue> desired, GameSchema schema)
+    /// <summary>
+    /// Calcula as alteracoes no texto das opcoes de menu.
+    /// </summary>
+    /// <param name="text">O conteudo do arquivo de opcoes do jogo.</param>
+    /// <param name="desired">Os valores desejados, por opcao.</param>
+    /// <param name="schema">O esquema do jogo.</param>
+    /// <param name="explicitIndexes">
+    /// O indice a escrever por opcao, quando o schema nao declara a lista de
+    /// valores aceitos. As opcoes de exibicao sao <c>is_dynamic</c>: o motor
+    /// monta a lista delas em runtime, e so a evidencia gravada pelo proprio
+    /// jogo diz qual e o indice.
+    /// </param>
+    public MenuWriteResult Plan(
+        string text,
+        IReadOnlyDictionary<string, ProfileValue> desired,
+        GameSchema schema,
+        IReadOnlyDictionary<string, int>? explicitIndexes = null)
     {
         var located = JsonFieldLocator.Locate(text);
         var changes = new List<MenuOptionChange>();
@@ -48,7 +64,12 @@ public sealed class MenuOptionsWriter
             }
 
             var acceptedIndex = -1;
-            if (schema is not null && schema.TryGet(option, out var schemaOption) && schemaOption.HasAcceptedValues)
+
+            if (explicitIndexes is not null && explicitIndexes.TryGetValue(option, out var explicitIndex))
+            {
+                acceptedIndex = explicitIndex;
+            }
+            else if (schema is not null && schema.TryGet(option, out var schemaOption) && schemaOption.HasAcceptedValues)
             {
                 var wanted = value.AsString();
                 if (wanted is not null)
