@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CP2077Performance.Core\CP2077Performance.Core.csproj" />
+    <ProjectReference Include="..\CP2077Performance.Ui\CP2077Performance.Ui.csproj" />
   </ItemGroup>
 
 </Project>

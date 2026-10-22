@@ -1,4 +1,4 @@
-namespace CP2077Performance.Tests;
+﻿namespace CP2077Performance.Tests;
 
 internal static class Program
 {
@@ -10,8 +10,12 @@ internal static class Program
         SchemaTests.Register(suite);
         BinaryTests.Register(suite);
         ProfileTests.Register(suite);
+        ProfileFormatTests.Register(suite);
         WritingTests.Register(suite);
         BackupTests.Register(suite);
+        ThemeTests.Register(suite);
+        DisplayTests.Register(suite);
+        DisplayApplyTests.Register(suite);
 
         Console.WriteLine("CP2077 Performance - verificacoes");
         Console.WriteLine();

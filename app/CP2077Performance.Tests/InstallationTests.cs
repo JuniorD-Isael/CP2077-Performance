@@ -213,5 +213,31 @@ internal static class InstallationTests
                 Cleanup(root);
             }
         });
+
+        suite.Add("3.1 o mod de HUD remanescente e detectado sem oferecer remocao", () =>
+        {
+            var root = CreateFakeInstall();
+            try
+            {
+                var locator = new GameLocator(root);
+                var detector = new LeftoverPanelDetector(locator);
+
+                Check.Null(detector.DetectHudMod(), "nada detectado sem o mod de HUD");
+
+                Directory.CreateDirectory(locator.LegacyHudModPath);
+                File.WriteAllText(Path.Combine(locator.LegacyHudModPath, "init.lua"), "-- stub");
+
+                var hudMod = detector.DetectHudMod();
+                Check.NotNull(hudMod, "mod de HUD detectado");
+                Check.Equal(1, hudMod!.FileCount, "quantidade de arquivos do mod");
+                Check.Null(detector.Detect(), "distinto do painel in-game");
+                Check.Contains(LeftoverPanelDetector.HudModNoticeMessage, "projeto separado", "aviso de projeto separado");
+                Check.True(Directory.Exists(locator.LegacyHudModPath), "diretorio continua intacto");
+            }
+            finally
+            {
+                Cleanup(root);
+            }
+        });
     }
 }
