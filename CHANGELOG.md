@@ -5,6 +5,225 @@ Todas as versões notáveis deste projeto.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 o versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased]
+
+O aplicativo passa a cuidar exclusivamente do **setup de performance** e de
+**forçar tela cheia (`WindowMode = Fullscreen`) preservando a resolução escolhida
+pelo usuário no jogo**, com uma interface enxuta inspirada na arte promocional de
+**Cyberpunk: Edgerunners**. Toda manipulação e alternância de HUD saem do
+aplicativo para um projeto separado (`handoff/hud-toggle/`).
+
+### Adicionado
+
+- **Identidade visual *Cyberpunk: Edgerunners*** (`CyberpunkPalette`,
+  `MaterialTheme`, `MainForm`): paleta de quatro cores-base (`#04101c` azul-petróleo
+  abissal de Night City, `#fcee0a` amarelo ácido, `#00ff66` verde neon
+  *Sandevistan* e `#f4f7fa` branco-gelo), rótulo escuro sobre amarelo ácido com
+  contraste 16,57:1, recortes poligonais chanfrados em 45° (`ChamferedPath`),
+  barras laterais de destaque e cabeçalho estilo HUD (`MakeEdgerunnersHeader`).
+- **Referência técnica na documentação** (`docs/ARQUITETURA.md` §10): tabelas
+  completas das 38 opções de `UserSettings.json`, 60 cvars de `user.ini` e 4
+  patches de `config.json`.
+
+### Removido (**BREAKING**)
+
+- **Seção "O que aplicar" e seletor de monitor/resolução**: removidos
+  `_displayCard`, `_displayCheck`, `_displayMonitorBox`, `DisplayModes`,
+  `DisplayMonitor`, `DisplayIndexMap` e `MaterialChoiceCard`. O aplicativo não
+  enumera mais monitores nem sobrescreve `Resolution`.
+- **Botão "Mostrar detalhe técnico" e as 5 abas de auditoria**: removidos
+  `_revealButton`, `_detailsPanel` e `_tabs` (`Perfil`, `Motor`, `Menu`,
+  `Backups`, `Registro`) da janela principal, transferindo a referência técnica
+  para `docs/ARQUITETURA.md`.
+- **Alternância de HUD em jogo**: removidos `HudToggle`, `GlobalHotkey`, a
+  presença na bandeja, a instalação do mod Lua (`mod/CP2077Performance/init.lua`)
+  e os controles de HUD da tela principal.
+- **Variante `hudMinimal`**: removida de `profile/lowspec-30fps.json`. O perfil
+  curado deixa de declarar qualquer opção que altere o HUD do jogo. O bloco e o
+  trabalho da change `toggle-hud-in-game` foram preservados em
+  `handoff/hud-toggle/`.
+
+### Alterado
+
+- **Tela cheia automática preservando a resolução do usuário**: ao aplicar o
+  perfil, o aplicativo grava sempre `WindowMode = Fullscreen` (`index = 2`) sem
+  alterar `Resolution`, preservando qualquer resolução configurada no jogo
+  (`1366x768`, `1280x720`, `1600x900`, `1920x1080`, etc.) em qualquer monitor.
+- **Mod antigo reportado**: `LeftoverPanelDetector` passa a detectar (sem
+  apagar) o diretório `cyber_engine_tweaks\mods\CP2077Performance` e a tela
+  principal informa que o mod pertence a uma versão anterior e agora vive em
+  projeto separado.
+- **Variante desconhecida ignorada**: `VariantResolver` ignora sem erro um id
+  de variante salvo que o perfil não declara mais.
+
+## [0.3.0-alpha] — 2026-10-21
+
+O jogo passa a abrir **em tela cheia, na resolução do monitor**, mesmo com a
+resolução interna menor. E a primeira vez que o aplicativo mexe nas opções
+de exibição — as duas que o motor monta em runtime, e que o esquema do jogo
+não descreve.
+
+### Adicionado
+
+**Modo de exibição** (`app/CP2077Performance.Core/Display`, `app/CP2077Performance.Ui`)
+- O aplicativo enumera os **monitores** do sistema, com a resolução nativa
+  de cada um, e oferece o monitor em que o jogo roda. O principal do sistema
+  vem primeiro e é o padrão.
+- A escolha **"Abrir o jogo em tela cheia na resolução do monitor"** escreve
+  `WindowMode = Fullscreen` e `Resolution = <nativa do monitor>`.
+- A **resolução interna não muda**: a escala dinâmica de resolução continua
+  variando entre 50% e 85%, como antes.
+- O **índice** das opções dinâmicas é **aprendido com o próprio jogo**: o
+  aplicativo lê o par `(valor, índice)` que o motor gravou e o guarda em
+  `display-index.json`. Quando o índice de uma resolução é conhecido, ele
+  escreve o valor e o índice; quando não, escreve o valor — e o motor
+  corrige o índice no próximo início.
+- **Desligar a escolha devolve** as opções de exibição que o jogo tinha
+  antes de o aplicativo mexer nelas. A primeira vez que ele mexe, guarda o
+  estado anterior.
+
+**Documentação**
+- `docs/EXPERIMENTO-OPCOES-DE-EXIBICAO.md` — o procedimento de descoberta do
+  contrato das opções dinâmicas.
+- `docs/FINDINGS.md` §15 — o que o motor resolve, e como, medido em runtime.
+- `docs/ARQUITETURA.md` §9 — a receita do modo de exibição.
+
+### Validado
+
+Medição em runtime, com o jogo iniciado e encerrado:
+
+```
+antes     WindowMode = Fullscreen    index = 0
+          Resolution = 1600x900      index = 2
+
+depois    WindowMode = Fullscreen    index = 2
+          Resolution = 1600x900      index = 4
+```
+
+O motor **resolve pelo valor** e recalcula o índice. Com a configuração
+aplicada, a janela do jogo mediu **1600x900 @ 0,0** — a área de trabalho
+inteira do monitor, onde antes era uma janela de 1366×768 sem borda.
+
+Ciclo completo verificado contra a instalação real: ligando a escolha, as
+opções vão para `Fullscreen`/`1600x900`; desligando, voltam para
+`BorderlessWindowed`/`1366x768`. A escrita é cirúrgica — 2768 linhas antes e
+depois, e só os campos de valor e índice das opções visadas são tocados.
+
+75 verificações passam, incluindo as da enumeração de monitores, do índice
+das opções dinâmicas e da escrita com índice externo.
+
+## [0.2.0-alpha] — 2026-10-21
+
+A interface deixa de ser um painel de auditoria e passa a ser uma tela de
+decisões. A ação **Simular** sai, a base visual entra, e a variante passa a
+alcançar as duas camadas de configuração.
+
+### Adicionado
+
+**Tela principal** (`app/CP2077Performance.Ui`)
+- A tela principal deixa de ser um painel de opções e passa a oferecer
+  **escolhas**: a lista de variantes com rótulo e resumo, o **estado** da
+  aplicação e as ações de **aplicar** e **reverter**.
+- O **estado** é lido do disco, nunca da memória: se o perfil está aplicado,
+  desde quando, e quantas configurações divergem do que o jogo está usando de
+  fato. O motor recalcula parte dos valores — `HDDMode`, `HDDMode2` e
+  `EnableTelemetry` —, e um estado guardado em memória diria "aplicado" para
+  algo que o jogo já mudou.
+- O efeito da escolha é explicado em **linguagem corrente**, com a contagem de
+  configurações que serão alteradas.
+- **Primeira execução** orienta para a pasta do jogo, com o caminho típico de
+  cada loja, em vez de mostrar grades vazias.
+- O resultado de cada operação recebe **rótulo próprio** para sucesso, falha
+  parcial e erro.
+- A fila de operações ficou com **Aplicar** e **Restaurar**. Descartar edições
+  do perfil migrou para a revelação do detalhe técnico.
+
+**Base Material com paleta Cyberpunk** (`app/CP2077Performance.Ui/Theme`)
+- Camada de tema com papéis de cor, escala tipográfica, espaçamento de 8 px,
+  raio de canto, elevação e camada de estado, construída **sobre os controles
+  padrão do WinForms, sem nenhuma dependência externa**.
+- Paleta de quatro cores — `f7f7ff`, `6564db`, `85ff9e`, `000d25` — em
+  variante clara e escura, escolhida pela preferência de aplicativo do
+  sistema. As três cores cromáticas formam um triângulo: o destaque é a
+  rotação de −120° da principal, e o papel de erro é a rotação de +120°.
+- A preferência do sistema continua escolhendo o **modo**; a **cor** vem da
+  paleta do aplicativo. A moldura nativa da janela continua seguindo o
+  sistema.
+- O cartão de variante é desenhado à mão e exposto a leitores de tela como
+  caixa de seleção, com rótulo e resumo.
+
+**Variantes nas duas camadas** (`profile/`, `app/CP2077Performance.Core`)
+- `variants.<id>` passou a aceitar `userIni` (seção → chave → valor), `summary`
+  e `highlights`, junto de `label` e `description`.
+- Uma variante agora alcança **as duas camadas**: opções de menu e chaves de
+  cvar do motor. Sem isso, a escolha do usuário só mexeria nas 37 opções de
+  menu, que são a menor parte do ganho.
+- Ao desligar uma variante, as chaves de cvar que ela acrescentou **são
+  removidas** — o padrão do jogo para uma cvar é a ausência da chave. A
+  remoção só ocorre quando o valor em vigor ainda é exatamente o da variante;
+  se o usuário ajustou à mão, a chave fica e a divergência é reportada.
+- A curadoria do perfil ganhou `summary` e `highlights` da variante de HUD, em
+  linguagem corrente.
+
+**Documentação**
+- `docs/ARQUITETURA.md` — o material de desenvolvimento que saiu do README:
+  derivação de caminho, escrita cirúrgica, o modelo de opção do jogo, as
+  medições, a proveniência dos valores e a base Material.
+- `README.en.md` — a versão completa em inglês, separada do README principal.
+
+### Removido (quebra)
+
+- **A ação Simular.** A pré-visualização de "antes → depois" saía da tela
+  principal. A informação não se perde: a tela principal mostra quantas
+  configurações mudam, e a revelação do detalhe técnico mostra valor em
+  vigor e valor desejado lado a lado, com o estado real do jogo. Perde-se o
+  botão, não o dado. O cálculo do plano continua no motor — `Apply()` depende
+  dele, e a contagem de alterações vem dele.
+
+### Mudado (quebra)
+
+- **A tela principal mudou de forma.** As cinco abas (Perfil, Motor, Menu,
+  Backups, Registro) foram para uma **revelação explícita**, atrás do botão
+  *Mostrar detalhe técnico*, intactas — com as colunas de procedência e a
+  identificação de seção e chave de cvar preservadas. A linha de alvo do
+  hardware, as linhas de origem das camadas e a nota sobre a limitação da
+  validação por token saíram da tela principal e foram para a revelação.
+- **O formato da variante** aceita campos novos. Os campos são aditivos, e um
+  perfil gravado no formato anterior — variante sem resumo e sem chaves de
+  cvar — continua sendo lido e aplicado.
+
+### Corrigido
+
+- A recusa por jogo em execução **orienta como recuperar**: quando o processo
+  persiste depois do jogo fechado, a mensagem diz para encerrá-lo pelo
+  Gerenciador de Tarefas. Antes, a recusa não tinha saída.
+
+### Validação
+
+Aplicação real contra a instalação do jogo, com o jogo fechado:
+
+```
+UserSettings.json   2768 linhas -> 2768 linhas, 1 alterada (só "value")
+user.ini            intacto
+config.json         intacto
+```
+
+Variante ligada: 23 linhas alteradas, **todas** pertencentes à variante
+`hudMinimal`. Variante desligada: as 23 voltaram ao `default_value` do
+esquema, e o arquivo ficou **byte a byte igual** (SHA-256 idêntico) ao estado
+anterior à variante.
+
+61 verificações passam, incluindo as da paleta: os papéis de texto têm
+contraste ≥ 4.5:1 sobre o fundo nas duas variantes.
+
+### Conhecido
+
+- Com o preenchimento da ação principal em `6564db`, **nenhum** par das quatro
+  cores-base alcança 4.5:1 com o rótulo: o mais alto é `f7f7ff` sobre
+  `6564db`, que dá 4.48:1. O preenchimento mantém a cor exata da paleta, e
+  esse é o teto que ela permite. Onde a principal aparece **como texto**, um
+  tom derivado é usado, e esse alcança 4.5:1.
+
 ## [0.1.0] — 2026-10-20
 
 Primeira versão estável. Validada em runtime no hardware de referência
@@ -162,5 +381,6 @@ Sessão instrumentada de 19 minutos: GPU com mediana 95% (72% das amostras
 acima de 95%), CPU com mediana 4,2 de 12 núcleos, VRAM compartilhada com
 mediana 2.528 MB, e **FPS com mediana 24 em gameplay** contra 29 no menu.
 **O limite é custo de fragmento na GPU, não CPU.**
+[0.2.0-alpha]: https://github.com/CP2077-Performance/CP2077-Performance/compare/v0.1.1_alpha...v0.2.0_alpha
 [0.1.1-alpha]: https://github.com/CP2077-Performance/CP2077-Performance/compare/v0.1.0...v0.1.1_alpha
 [0.1.0]: https://github.com/CP2077-Performance/CP2077-Performance/releases/tag/v0.1.0

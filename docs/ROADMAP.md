@@ -14,11 +14,30 @@ O que já está resolvido, e o que ainda não está. Cada item diz **o que se sa
 | A escrita é cirúrgica | `UserSettings.json`: 2768 → 2768 linhas, 26 alteradas, todas `value`/`index`. `user.ini`: comentários do motor intactos |
 | O painel in-game pode aplicar | **não** — o sandbox do CET confina o `io` ao diretório do mod. Motivo em `FINDINGS.md` §13.1 e §14.4 |
 | Onde está o gargalo | GPU a 95% de mediana, CPU folgada. É custo de fragmento, não de CPU |
-| A variante de HUD é segura | opt-in, e desligada devolve as opções ao `default_value` do esquema |
+| O recorte do aplicativo é focado | O aplicativo cuida apenas da performance e da tela cheia. Toda manipulação de HUD saiu para um projeto próprio |
+| A variante alcança as duas camadas | desde `0.2.0-alpha`: `variants.<id>` aceita `userIni`, e desligar a variante remove as chaves que ela acrescentou. Verificado byte a byte: o arquivo volta ao estado anterior |
+| A interface é compreensível sem documentação | desde `0.2.0-alpha`: a tela principal oferece escolhas, explica o efeito em linguagem corrente e mostra o estado lido do disco. O detalhe técnico fica atrás de uma revelação explícita |
 
 ---
 
 ## Ponto 2 — pendências conhecidas
+
+### 2.0 A calibração das variantes depende do A/B de §2.2
+
+**O que se sabe.** O mecanismo de variante está pronto: cada variante pode
+alcançar as duas camadas, declarar um resumo em linguagem corrente, e ser
+desligada com restauração determinística ao padrão do jogo. O perfil curado
+não declara variantes no momento — toda manipulação de HUD foi movida para
+um projeto separado.
+
+**O que falta.** **Quantas variantes existem e o que cada uma contém.** Isso
+depende do A/B de §2.2: sem medir o efeito dos quatro cvars novos, não há
+base para afirmar que um conjunto menor entrega o mesmo FPS com menos perda
+visual. Uma variante nova, hoje, seria uma afirmação sem medição.
+
+**Como resolver.** Concluir §2.2 e, com o resultado, acrescentar variantes ao
+perfil curado. O aplicativo não precisa mudar: o conteúdo das variantes mora
+no perfil, e o perfil curado é a fonte única de verdade.
 
 ### 2.1 `value` vs `index`: qual campo o motor lê?
 

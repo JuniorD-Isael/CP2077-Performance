@@ -666,3 +666,114 @@ que não ter: é uma interface que confirma mudanças inexistentes.
 O aplicativo assume o papel, e com ele o acesso real aos arquivos, a
 validação contra o esquema e contra o executável, e a possibilidade de
 mostrar o estado efetivo.
+
+## 15. As opcoes de exibicao: o que o motor resolve, e como
+
+### 15.1 O problema
+
+`WindowMode` e `Resolution` sao as duas opcoes que decidem como a imagem
+ocupa a tela. O esquema do jogo as declara assim:
+
+```json
+{ "name": "Resolution", "type": "string_list", "is_dynamic": true }
+```
+
+`is_dynamic: true` e **sem lista de valores**. O motor monta essa lista em
+runtime, a partir do monitor, e o schema - a unica fonte que o aplicativo
+consulta - nao a contem. Entre as 328 opcoes que o jogo registra, essas
+sao justamente as duas que decidem o modo de exibicao.
+
+### 15.2 O indice nao e o indice da enumeracao do Windows
+
+O `UserSettings.json` guarda, para cada opcao de lista, o `value` **e** o
+`index`. Para `Resolution`, o usuario tinha `1366x768` com `index = 2`.
+
+A enumeracao do Windows (`EnumDisplaySettings`) põe `1366x768` nos indices
+**18 a 20** do monitor de 1920x1080, e bem mais adiante no de 1600x900. A
+lista do motor e outra.
+
+E o executavel nao contem `1366x768` nem `1440x900`: as strings de
+resolucoes que existem no binario sao `3840x2160`, `3840x1600`, `3440x1440`,
+`2560x1440`, `2560x1080`, `1920x1080`, `1600x900`, `1280x720`, `960x540`,
+`640x480`, `480x270`, `456x256` e `228x128` - uma tabela de **preset de
+dimensao de render** (`renddimEPreset`), nao a lista de saida. A lista de
+resolucoes e montada em runtime.
+
+### 15.3 O modo de janela: a lista e do jogo
+
+O binario contem as chaves de localizacao, na ordem:
+
+```
+UI-Settings-Video-WindowModeSetting-Fullscreen
+UI-Settings-Video-WindowModeSetting-BorderlessWindowed
+UI-Settings-Video-WindowModeSetting-Windowed
+```
+
+e as strings de valor soltas `BorderlessWindowed` e `Windowed`. A ordem
+dessas chaves **nao** e a ordem da lista interna: o proprio jogo gravou
+`BorderlessWindowed` com indice **1** e, mais tarde, `Fullscreen` com indice
+**2**.
+
+### 15.4 A medicao que fecha a questao: o motor resolve pelo valor
+
+Com o arquivo marcando `Fullscreen` com indice 0 e `1600x900` com indice 2,
+o jogo foi iniciado. Ele **manteve os dois valores** e **recalculou os dois
+indices**:
+
+```
+antes     WindowMode = Fullscreen          index = 0
+          Resolution = 1600x900            index = 2
+
+depois    WindowMode = Fullscreen          index = 2
+          Resolution = 1600x900            index = 4
+```
+
+O valor foi respeitado e o indice, recalculado. **O motor resolve a opcao
+pelo `value`; o indice e consequencia, nao entrada.**
+
+Isso responde a pergunta que o `ROADMAP.md` §2.1 deixou aberta - com uma
+ressalva: a prova vale para as opcoes de exibicao. Para `HDDMode` e
+`HDDMode2`, o §13.3 ja havia mostrado que nenhum dos dois campos importa,
+porque o motor recalcula o valor.
+
+### 15.5 A consequencia para o aplicativo
+
+O aplicativo escreve o `value` de `WindowMode` e de `Resolution`. O indice
+ele escreve quando o conhece - e o conhecimento vem do proprio jogo: o
+aplicativo le o par que o motor gravou e guarda o indice, para escrever os
+dois na proxima vez.
+
+Quando o indice nao e conhecido, o aplicativo escreve so o valor, e o motor
+corrige o indice no proximo inicio. Nao ha aposta: o valor e o que importa.
+
+### 15.6 A janela de tela cheia, medida
+
+Com `WindowMode = Fullscreen` e `Resolution = 1600x900` gravados, e o jogo
+iniciado, a janela do jogo mediu **1600x900 @ 0,0** - a area de trabalho
+inteira do monitor principal, onde antes era uma janela de 1366x768 sem
+borda. A resolucao interna nao mudou: a escala dinamica de resolucao
+continua variando entre 50% e 85%.
+
+### 15.7 A lista do motor e mais restrita que a do monitor
+
+Com `1440x900` gravado a mao - que **e** um modo do monitor - e o jogo
+iniciado, o motor **rejeitou** o valor e voltou para `1366x768`. Com
+`1280x720`, aceitou.
+
+A lista do motor e, portanto, mais restrita que a lista de modos do monitor:
+ela tem as resolucoes padrao, e nao todas as que o driver oferece. E a
+tabela de strings do executavel (`renddimEPreset`, §15.2) tem `1600x900` e
+`1280x720`, mas nao `1440x900`.
+
+A consequencia pratica e a unica que importa para o aplicativo: **a
+resolucao nativa do monitor e sempre aceita**, porque e o modo em que o
+desktop esta rodando. O aplicativo oferece exatamente essa, e nao uma lista
+de resolucoes.
+
+### 15.8 O indice so e reescrito quando o valor diverge
+
+Com `1600x900` de indice 2 no arquivo, o jogo reescreveu para indice 4: o
+valor era o mesmo, mas o indice do motor nao. Com `1280x720` de indice 99,
+o jogo **nao reescreveu**: o valor era valido e o motor nao diverge por causa
+do indice. O indice e um detalhe do arquivo, e o motor o corrige quando
+escreve por outro motivo.
