@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using CP2077Performance.Core.Application;
 using CP2077Performance.Core.Backup;
 using CP2077Performance.Core.Binary;
+using CP2077Performance.Core.Display;
 using CP2077Performance.Core.GameInstallation;
 using CP2077Performance.Core.Profile;
 using CP2077Performance.Core.Schema;
@@ -14,10 +15,11 @@ internal sealed class AppState
 {
     private const string UiSettingsFileName = "ui.json";
 
-    private readonly string _toolDataRoot = GameLocator.DefaultToolDataRoot;
+    private readonly string _toolDataRoot;
 
-    public AppState(string embeddedDefaultProfileJson)
+    public AppState(string embeddedDefaultProfileJson, string? toolDataRoot = null)
     {
+        _toolDataRoot = toolDataRoot ?? GameLocator.DefaultToolDataRoot;
         EmbeddedDefaultProfileJson = embeddedDefaultProfileJson;
         Store = new ProfileStore(_toolDataRoot);
         Backups = new BackupService(Path.Combine(_toolDataRoot, "backups"));
@@ -146,11 +148,14 @@ internal sealed class AppState
         }
 
         var applier = new ProfileApplier(Locator, Backups);
-        return applier.Plan(Profile, EnabledVariants, Schema, ExecutableTokens);
+        return applier.Plan(Profile, EnabledVariants, Schema, ExecutableTokens, DisplayOptions.FullscreenOnly);
     }
 
-    /// <summary>Aplica o perfil.</summary>
-    public ApplyResult? Apply()
+    /// <summary>
+    /// Aplica o perfil junto com o modo de janela em tela cheia, preservando a
+    /// resolucao configurada pelo usuario no jogo.
+    /// </summary>
+    public ApplyResult? Apply(DisplayOptions? display = null)
     {
         if (Locator is null || Schema is null)
         {
@@ -158,7 +163,13 @@ internal sealed class AppState
         }
 
         var applier = new ProfileApplier(Locator, Backups);
-        return applier.Apply(Profile, EnabledVariants, Schema, ExecutableTokens, Log);
+        return applier.Apply(
+            Profile,
+            EnabledVariants,
+            Schema,
+            ExecutableTokens,
+            Log,
+            display ?? DisplayOptions.FullscreenOnly);
     }
 
     /// <summary>Le as opcoes de menu efetivamente em vigor no arquivo do jogo.</summary>
@@ -183,6 +194,120 @@ internal sealed class AppState
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// O estado do perfil, lido do disco.
+    /// </summary>
+    /// <param name="Applied">
+    /// Se o que esta em vigor no jogo corresponde ao que o perfil pede.
+    /// </param>
+    /// <param name="AppliedAt">Quando a ultima aplicacao aconteceu.</param>
+    /// <param name="Diverging">Quantas configuracoes divergem do valor em vigor.</param>
+    /// <param name="Total">Quantas configuracoes o perfil alcanca.</param>
+    public sealed record AppliedState(
+        bool Applied,
+        DateTime? AppliedAt,
+        int Diverging,
+        int Total);
+
+    /// <summary>
+    /// Le do disco o estado do perfil: se esta aplicado, quando foi, e quantas
+    /// configuracoes divergem do valor que o jogo esta usando de fato.
+    /// </summary>
+    /// <remarks>
+    /// O estado vem do disco, nunca da memoria. O motor recalcula parte dos
+    /// valores ao encerrar, e um estado guardado em memoria diria "aplicado"
+    /// para algo que o jogo ja mudou.
+    /// </remarks>
+    public AppliedState ReadAppliedState()
+    {
+        if (Locator is null || Schema is null)
+        {
+            return new AppliedState(false, null, 0, 0);
+        }
+
+        var effective = VariantResolver.Resolve(Profile, EnabledVariants, Schema);
+        var current = ReadEffectiveMenuValues();
+        var ini = ReadEngineIni();
+
+        var diverging = 0;
+        var total = 0;
+
+        foreach (var (option, value) in effective.MenuValues)
+        {
+            total++;
+            if (!Matches(current, option, value))
+            {
+                diverging++;
+            }
+        }
+
+        if (current.ContainsKey(DisplayModeIndex.WindowModeOption))
+        {
+            total++;
+            if (!Matches(current, DisplayModeIndex.WindowModeOption, ProfileValue.FromString(DisplayModeIndex.Fullscreen)))
+            {
+                diverging++;
+            }
+        }
+
+        foreach (var (option, value) in effective.RestoreToDefault)
+        {
+            total++;
+            if (!Matches(current, option, value))
+            {
+                diverging++;
+            }
+        }
+
+        foreach (var (section, keys) in effective.UserIniValues)
+        {
+            foreach (var (key, value) in keys)
+            {
+                total++;
+                if (!ini.TryGetValue($"{section}/{key}", out var entry) ||
+                    !string.Equals(entry.Value, value, StringComparison.Ordinal))
+                {
+                    diverging++;
+                }
+            }
+        }
+
+        var appliedAt = Log.Read(1).FirstOrDefault()?.Timestamp;
+        return new AppliedState(total > 0 && diverging == 0, appliedAt, diverging, total);
+    }
+
+    private static bool Matches(
+        IReadOnlyDictionary<string, string> current,
+        string option,
+        ProfileValue wanted) =>
+        current.TryGetValue(option, out var value) &&
+        string.Equals(value, wanted.Json, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Quantas configuracoes a selecao atual mudaria. E o que a tela principal
+    /// mostra antes de o usuario aplicar.
+    /// </summary>
+    public int CountPendingChanges()
+    {
+        var plan = Plan();
+        if (plan is null)
+        {
+            return 0;
+        }
+
+        return plan.MenuChanges.Count + plan.IniChanges.Count + plan.CetChanges.Count;
+    }
+
+    /// <summary>
+    /// Restaura a versao de backup mais recente. E a reversao que a tela
+    /// principal oferece.
+    /// </summary>
+    public RestoreOutcome? RestoreLatest()
+    {
+        var latest = Backups.List().FirstOrDefault();
+        return latest is null ? null : Backups.Restore(latest);
     }
 
     /// <summary>Uma chave de cvar lida do arquivo do motor.</summary>
@@ -236,6 +361,10 @@ internal sealed class AppState
     public LeftoverPanel? DetectLeftoverPanel() =>
         Locator is null ? null : new LeftoverPanelDetector(Locator).Detect();
 
+    /// <summary>Mod de HUD remanescente de versoes anteriores (apenas reportado, nunca apagado).</summary>
+    public LeftoverHudMod? DetectLeftoverHudMod() =>
+        Locator is null ? null : new LeftoverPanelDetector(Locator).DetectHudMod();
+
     public bool RemoveLeftoverPanel(LeftoverPanel panel) =>
         Locator is not null && new LeftoverPanelDetector(Locator).Remove(panel);
 
@@ -267,7 +396,10 @@ internal sealed class AppState
         try
         {
             Directory.CreateDirectory(_toolDataRoot);
-            var settings = new JsonObject { ["gamePath"] = GamePath };
+            var settings = new JsonObject
+            {
+                ["gamePath"] = GamePath,
+            };
             File.WriteAllText(UiSettingsPath, settings.ToJsonString());
         }
         catch (IOException)

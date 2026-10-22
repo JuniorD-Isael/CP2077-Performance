@@ -1,275 +1,260 @@
 using System.Globalization;
-using CP2077Performance.Core.Application;
-using CP2077Performance.Core.Backup;
 using CP2077Performance.Core.GameInstallation;
-using CP2077Performance.Core.Profile;
+using CP2077Performance.Ui.Theme;
 
 namespace CP2077Performance.Ui;
 
 internal partial class MainForm : Form
 {
-    private readonly AppState _state;
+    /// <summary>Largura preferida da janela, em pixels logicos.</summary>
+    private const int DefaultWidth = 880;
 
+    /// <summary>Altura preferida da janela enxuta, em pixels logicos.</summary>
+    private const int DefaultHeight = 450;
+
+    private readonly AppState _state;
+    private readonly CyberpunkPalette _palette;
+
+    private TableLayoutPanel _root = null!;
     private TextBox _gamePathBox = null!;
-    private Label _statusLabel = null!;
-    private Label _layersLabel = null!;
-    private TabControl _tabs = null!;
-    private TextBox _resultBox = null!;
-    private DataGridView _profileGrid = null!;
-    private DataGridView _engineGrid = null!;
-    private DataGridView _menuGrid = null!;
-    private DataGridView _backupGrid = null!;
-    private DataGridView _logGrid = null!;
-    private CheckedListBox _variantsBox = null!;
+    private Panel _orientationPanel = null!;
+    private Label _orientationLabel = null!;
+    private Panel _statusCard = null!;
+    private Label _effectLabel = null!;
+    private Label _stateLabel = null!;
     private Button _applyButton = null!;
-    private Button _simulateButton = null!;
     private Button _restoreButton = null!;
-    private Button _discardButton = null!;
+    private Panel _resultPanel = null!;
+    private Label _resultLabel = null!;
+
+    /// <summary>Motivo pelo qual a aplicacao esta bloqueada, quando esta.</summary>
+    private string? _blockReason;
 
     public MainForm(AppState state)
     {
         _state = state;
+        _palette = ThemeHelper.Palette;
+
+        AutoScaleMode = AutoScaleMode.Dpi;
+
+        Text = Strings.Get("AppTitle");
+        Width = DefaultWidth;
+        Height = DefaultHeight;
+        MinimumSize = new Size(760, 380);
+        StartPosition = FormStartPosition.CenterScreen;
+
+        MaterialTheme.Apply(this, _palette);
+
         BuildUi();
         LoadGamePath();
         RefreshAll();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        WindowState = FormWindowState.Normal;
+        Size = new Size(DefaultWidth, DefaultHeight);
     }
 
     // ---------------------------------------------------------------- construcao
 
     private void BuildUi()
     {
-        Text = Strings.Get("AppTitle");
-        Width = 1100;
-        Height = 720;
-        MinimumSize = new Size(900, 560);
-        StartPosition = FormStartPosition.CenterScreen;
-        Font = new Font("Segoe UI", 9F);
-
-        var root = new TableLayoutPanel
+        _root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
-            Padding = new Padding(8),
+            RowCount = 7,
+            Padding = new Padding(MaterialTheme.Scale(18)),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
-        // --- caminho do jogo
-        var pathRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, AutoSize = true };
-        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-        pathRow.Controls.Add(new Label { Text = Strings.Get("GameFolder"), AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 6, 0) });
-        _gamePathBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(0, 3, 6, 0) };
-        pathRow.Controls.Add(_gamePathBox);
-
-        var browse = new Button { Text = Strings.Get("Browse"), AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-        browse.Click += OnBrowse;
-        pathRow.Controls.Add(browse);
-
-        var validate = new Button { Text = Strings.Get("Validate"), AutoSize = true };
-        validate.Click += OnValidate;
-        pathRow.Controls.Add(validate);
-
-        root.Controls.Add(pathRow, 0, 0);
-
-        _statusLabel = new Label { Dock = DockStyle.Fill, AutoSize = true, ForeColor = SystemColors.GrayText };
-        root.Controls.Add(_statusLabel, 0, 1);
-
-        _layersLabel = new Label { Dock = DockStyle.Fill, AutoSize = true };
-        root.Controls.Add(_layersLabel, 0, 2);
-
-        _tabs = new TabControl { Dock = DockStyle.Fill };
-        _tabs.TabPages.Add(BuildProfileTab());
-        _tabs.TabPages.Add(BuildEngineTab());
-        _tabs.TabPages.Add(BuildMenuTab());
-        _tabs.TabPages.Add(BuildBackupsTab());
-        _tabs.TabPages.Add(BuildLogTab());
-        root.Controls.Add(_tabs, 0, 3);
-
-        // --- acoes
-        var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, AutoSize = true };
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 6; i++)
         {
-            actions.ColumnStyles.Add(i < 4
-                ? new ColumnStyle(SizeType.AutoSize)
-                : new ColumnStyle(SizeType.Percent, 100));
+            _root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
-        _simulateButton = new Button { Text = Strings.Get("Simulate"), AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-        _simulateButton.Click += OnSimulate;
+        // linha final absorve o espaco vertical excedente quando a janela e maximizada
+        _root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        _applyButton = new Button { Text = Strings.Get("Apply"), AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-        _applyButton.Click += OnApply;
+        _root.Controls.Add(BuildHeader(), 0, 0);
+        _root.Controls.Add(BuildPathRow(), 0, 1);
+        _root.Controls.Add(BuildOrientation(), 0, 2);
+        _root.Controls.Add(BuildStatusCard(), 0, 3);
+        _root.Controls.Add(BuildActions(), 0, 4);
+        _root.Controls.Add(BuildResult(), 0, 5);
 
-        _restoreButton = new Button { Text = Strings.Get("Restore"), AutoSize = true, Margin = new Padding(0, 0, 6, 0) };
-        _restoreButton.Click += OnRestore;
-
-        _discardButton = new Button { Text = Strings.Get("Discard"), AutoSize = true, Margin = new Padding(0, 0, 12, 0) };
-        _discardButton.Click += OnDiscard;
-
-        actions.Controls.Add(_simulateButton, 0, 0);
-        actions.Controls.Add(_applyButton, 1, 0);
-        actions.Controls.Add(_restoreButton, 2, 0);
-        actions.Controls.Add(_discardButton, 3, 0);
-
-        _resultBox = new TextBox
-        {
-            Dock = DockStyle.Fill,
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            BackColor = SystemColors.Window,
-        };
-        actions.Controls.Add(_resultBox, 4, 0);
-
-        root.Controls.Add(actions, 0, 4);
-        Controls.Add(root);
+        Controls.Add(_root);
     }
 
-    private TabPage BuildProfileTab()
+    private Control BuildHeader() =>
+        MaterialTheme.MakeEdgerunnersHeader(
+            Strings.Get("AppTitle"),
+            Strings.Get("HeaderSubtitle"),
+            _palette);
+
+    private Control BuildPathRow()
     {
-        var page = new TabPage(Strings.Get("TabProfile"));
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var card = MaterialTheme.MakeCard(_palette);
+        card.Dock = DockStyle.Fill;
+        card.AutoSize = true;
+        card.Margin = new Padding(0, 0, 0, MaterialTheme.Scale(10));
+        card.Padding = new Padding(
+            MaterialTheme.Scale(14),
+            MaterialTheme.Scale(10),
+            MaterialTheme.Scale(14),
+            MaterialTheme.Scale(10));
 
-        var header = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-        var nameLabel = new Label { Text = $"{Strings.Get("ProfileName")}: ", AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
-        var nameValue = new Label { Text = _state.Profile.Name, AutoSize = true, Margin = new Padding(0, 6, 20, 0) };
-        var versionLabel = new Label { Text = $"{Strings.Get("Version")}: ", AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
-        var versionValue = new Label { Text = _state.Profile.Version, AutoSize = true, Margin = new Padding(0, 6, 20, 0) };
-        header.Controls.AddRange(new Control[] { nameLabel, nameValue, versionLabel, versionValue });
-
-        var variantsLabel = new Label { Text = Strings.Get("Variants"), AutoSize = true, Margin = new Padding(0, 4, 0, 0) };
-        header.Controls.Add(variantsLabel);
-
-        _variantsBox = new CheckedListBox { AutoSize = true, Height = 70, Margin = new Padding(0, 2, 0, 4) };
-        foreach (var (id, variant) in _state.Profile.Variants)
+        var row = new TableLayoutPanel
         {
-            _variantsBox.Items.Add(new VariantItem(id, variant.Label));
-        }
-        _variantsBox.ItemCheck += OnVariantCheck;
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            AutoSize = true,
+            BackColor = Color.Transparent,
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        layout.Controls.Add(header, 0, 0);
+        var caption = MaterialTheme.MakeLabel(Strings.Get("GameFolder"), LabelRole.Body, _palette);
+        caption.AutoSize = true;
+        caption.Anchor = AnchorStyles.Left;
+        caption.Margin = new Padding(0, MaterialTheme.Scale(6), MaterialTheme.Scale(10), 0);
+        row.Controls.Add(caption, 0, 0);
 
-        _profileGrid = CreateGrid();
-        layout.Controls.Add(_profileGrid, 0, 1);
+        _gamePathBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Margin = new Padding(0, MaterialTheme.Scale(3), MaterialTheme.Scale(10), 0),
+            BackColor = _palette.SurfaceRaised,
+            ForeColor = _palette.OnSurface,
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+        row.Controls.Add(_gamePathBox, 1, 0);
 
-        var note = new Label
+        var browse = MaterialTheme.MakeButton(Strings.Get("Browse"), ButtonVariant.Outlined, _palette);
+        browse.Click += OnBrowse;
+        row.Controls.Add(browse, 2, 0);
+
+        var validate = MaterialTheme.MakeButton(Strings.Get("Validate"), ButtonVariant.Tonal, _palette);
+        validate.Margin = new Padding(0);
+        validate.Click += OnValidate;
+        row.Controls.Add(validate, 3, 0);
+
+        card.Controls.Add(row);
+        return card;
+    }
+
+    private Control BuildOrientation()
+    {
+        _orientationPanel = MaterialTheme.MakeCard(_palette);
+        _orientationPanel.AutoSize = true;
+        _orientationPanel.Dock = DockStyle.Fill;
+        _orientationPanel.Margin = new Padding(0, 0, 0, MaterialTheme.Scale(10));
+        _orientationPanel.Padding = new Padding(MaterialTheme.Scale(16));
+
+        _orientationLabel = MaterialTheme.MakeLabel("", LabelRole.Body, _palette);
+        _orientationLabel.Dock = DockStyle.Fill;
+        _orientationLabel.AutoSize = true;
+        _orientationPanel.Controls.Add(_orientationLabel);
+
+        return _orientationPanel;
+    }
+
+    private Control BuildStatusCard()
+    {
+        _statusCard = MaterialTheme.MakeCard(_palette);
+        _statusCard.Dock = DockStyle.Fill;
+        _statusCard.AutoSize = true;
+        _statusCard.Margin = new Padding(0, 0, 0, MaterialTheme.Scale(12));
+        _statusCard.Padding = new Padding(
+            MaterialTheme.Scale(16),
+            MaterialTheme.Scale(14),
+            MaterialTheme.Scale(16),
+            MaterialTheme.Scale(14));
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            AutoSize = true,
+            BackColor = Color.Transparent,
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var heading = MaterialTheme.MakeLabel(Strings.Get("StatusHeading"), LabelRole.Title, _palette);
+        heading.AutoSize = true;
+        heading.Margin = new Padding(0, 0, 0, MaterialTheme.Scale(6));
+        layout.Controls.Add(heading, 0, 0);
+
+        _effectLabel = MaterialTheme.MakeLabel("", LabelRole.Body, _palette);
+        _effectLabel.AutoSize = true;
+        layout.Controls.Add(_effectLabel, 0, 1);
+
+        _stateLabel = MaterialTheme.MakeLabel("", LabelRole.Caption, _palette);
+        _stateLabel.AutoSize = true;
+        _stateLabel.Margin = new Padding(0, MaterialTheme.Scale(8), 0, 0);
+        layout.Controls.Add(_stateLabel, 0, 2);
+
+        _statusCard.Resize += (_, _) =>
+        {
+            var maxW = Math.Max(200, _statusCard.ClientSize.Width - _statusCard.Padding.Horizontal - MaterialTheme.Scale(8));
+            _effectLabel.MaximumSize = new Size(maxW, 0);
+            _stateLabel.MaximumSize = new Size(maxW, 0);
+        };
+
+        _statusCard.Controls.Add(layout);
+        return _statusCard;
+    }
+
+    private Control BuildActions()
+    {
+        var row = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
-            Text = Strings.Get("TokenWarning"),
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 0, 0, MaterialTheme.Scale(10)),
         };
-        layout.Controls.Add(note, 0, 2);
 
-        page.Controls.Add(layout);
-        return page;
+        _applyButton = MaterialTheme.MakeButton(Strings.Get("Apply"), ButtonVariant.Filled, _palette);
+        _applyButton.Click += OnApply;
+        row.Controls.Add(_applyButton);
+
+        _restoreButton = MaterialTheme.MakeButton(Strings.Get("Restore"), ButtonVariant.Tonal, _palette);
+        _restoreButton.Click += OnRestoreLatest;
+        row.Controls.Add(_restoreButton);
+
+        return row;
     }
 
-    private TabPage BuildEngineTab()
+    private Control BuildResult()
     {
-        var page = new TabPage(Strings.Get("TabEngine"));
-        _engineGrid = CreateGrid();
-        page.Controls.Add(_engineGrid);
-        return page;
-    }
+        _resultPanel = MaterialTheme.MakeCard(_palette);
+        _resultPanel.Dock = DockStyle.Fill;
+        _resultPanel.AutoSize = true;
+        _resultPanel.Margin = new Padding(0, 0, 0, MaterialTheme.Scale(6));
+        _resultPanel.Padding = new Padding(MaterialTheme.Scale(14));
+        _resultPanel.Visible = false;
 
-    private TabPage BuildMenuTab()
-    {
-        var page = new TabPage(Strings.Get("TabMenu"));
-        _menuGrid = CreateGrid();
-        page.Controls.Add(_menuGrid);
-        return page;
-    }
-
-    private TabPage BuildBackupsTab()
-    {
-        var page = new TabPage(Strings.Get("TabBackups"));
-        _backupGrid = CreateGrid();
-        page.Controls.Add(_backupGrid);
-        return page;
-    }
-
-    private TabPage BuildLogTab()
-    {
-        var page = new TabPage(Strings.Get("TabLog"));
-        _logGrid = CreateGrid();
-        page.Controls.Add(_logGrid);
-        return page;
-    }
-
-    private static string OriginText(Core.Application.ValueOrigin origin) => origin switch
-    {
-        Core.Application.ValueOrigin.Variant => Strings.Get("OriginVariant"),
-        Core.Application.ValueOrigin.SchemaDefault => Strings.Get("OriginDefault"),
-        _ => Strings.Get("OriginProfile"),
-    };
-
-    /// <summary>
-    /// Larguras deterministicas: as colunas do meio tem tamanho fixo (para o
-    /// cabecalho caber) e a ultima preenche o espaco restante.
-    /// </summary>
-    private static void FinishColumns(DataGridView grid)
-    {
-        for (var i = 0; i < grid.Columns.Count; i++)
+        _resultLabel = MaterialTheme.MakeLabel("", LabelRole.Body, _palette);
+        _resultLabel.AutoSize = true;
+        _resultPanel.Resize += (_, _) =>
         {
-            var column = grid.Columns[i];
-            if (i == grid.Columns.Count - 1)
-            {
-                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            }
-            else
-            {
-                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                column.Width = Math.Max(96, (int)(column.FillWeight * 11));
-            }
-        }
-    }
-
-    private static void AddColumn(DataGridView grid, string header, int weight)
-    {
-        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = header, FillWeight = weight });
-    }
-
-    private static DataGridViewRow AddRow(DataGridView grid, params object[] values)
-    {
-        var index = grid.Rows.Add(values);
-        return grid.Rows[index];
-    }
-
-    private static DataGridView CreateGrid()
-    {
-        return new DataGridView
-        {
-            Dock = DockStyle.Fill,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            AllowUserToResizeRows = false,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            BackgroundColor = SystemColors.Window,
-            BorderStyle = BorderStyle.FixedSingle,
-            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
-            EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2,
-            MultiSelect = false,
-            ReadOnly = true,
-            RowHeadersVisible = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            var maxW = Math.Max(200, _resultPanel.ClientSize.Width - _resultPanel.Padding.Horizontal - MaterialTheme.Scale(8));
+            _resultLabel.MaximumSize = new Size(maxW, 0);
         };
-    }
+        _resultPanel.Controls.Add(_resultLabel);
 
-    private sealed record VariantItem(string Id, string Label)
-    {
-        public override string ToString() => Label;
+        return _resultPanel;
     }
 
     // ---------------------------------------------------------------- acoes
@@ -303,114 +288,14 @@ internal partial class MainForm : Form
         var path = _gamePathBox.Text.Trim();
         if (!_state.SetGamePath(path))
         {
-            _statusLabel.Text = string.IsNullOrWhiteSpace(path)
-                ? Strings.Get("NoGamePath")
-                : Strings.Get("InvalidFolder");
-            _layersLabel.Text = "";
-            UpdateActionStates();
-            RefreshGrids();
+            ShowResult(
+                string.IsNullOrWhiteSpace(path) ? Strings.Get("NoGamePath") : Strings.Get("InvalidFolder"),
+                ResultKind.Error);
+            RefreshAll();
             return;
         }
 
-        _statusLabel.Text = $"{Strings.Get("Target")}: {_state.Profile.Target}";
-        UpdateLayersLabel();
-        RefreshGrids();
-    }
-
-    private void UpdateLayersLabel()
-    {
-        var lines = new List<string> { Strings.Get("Layers") + ":" };
-        foreach (var layer in _state.Layers)
-        {
-            var status = layer.Available ? Strings.Get("Available") : Strings.Get("Unavailable");
-            lines.Add($"  {layer.DisplayName}: {status}  -  {layer.TargetPath}  ({layer.Origin})");
-        }
-
-        var leftover = _state.DetectLeftoverPanel();
-        if (leftover is not null)
-        {
-            lines.Add("");
-            lines.Add(Core.GameInstallation.LeftoverPanelDetector.NoticeMessage);
-            lines.Add($"  {leftover.Path}");
-        }
-
-        _layersLabel.Text = string.Join(Environment.NewLine, lines);
-    }
-
-    /// <summary>
-    /// Desabilita as operacoes que nao podem ser executadas agora, e diz o
-    /// motivo.
-    /// </summary>
-    private void UpdateActionStates()
-    {
-        string? reason = null;
-
-        if (_state.Locator is null)
-        {
-            reason = Strings.Get("NoGamePath");
-        }
-        else if (_state.Validator is not null && !_state.Validator.IsValidInstallation())
-        {
-            reason = Strings.Get("InvalidFolder");
-        }
-        else if (new Core.GameInstallation.GameRunningGuard().IsGameRunning())
-        {
-            reason = Strings.Get("GameRunning");
-        }
-
-        var enabled = reason is null;
-        _applyButton.Enabled = enabled;
-        _simulateButton.Enabled = enabled;
-
-        _applyButton.Text = Strings.Get("Apply");
-        _simulateButton.Text = Strings.Get("Simulate");
-
-        if (reason is not null)
-        {
-            _applyButton.Text = $"{Strings.Get("Apply")} ({reason})";
-            _simulateButton.Text = $"{Strings.Get("Simulate")} ({reason})";
-        }
-
-        _restoreButton.Enabled = _state.Backups.List().Count > 0;
-        _discardButton.Enabled = true;
-    }
-
-    private void OnVariantCheck(object? sender, ItemCheckEventArgs e)
-    {
-        if (e.Index < 0 || e.Index >= _variantsBox.Items.Count)
-        {
-            return;
-        }
-
-        if (_variantsBox.Items[e.Index] is not VariantItem item)
-        {
-            return;
-        }
-
-        if (e.NewValue is CheckState.Checked)
-        {
-            _state.EnabledVariants.Add(item.Id);
-        }
-        else
-        {
-            _state.EnabledVariants.Remove(item.Id);
-        }
-
-        RefreshGrids();
-    }
-
-    private void OnSimulate(object? sender, EventArgs e)
-    {
-        var plan = _state.Plan();
-        if (plan is null)
-        {
-            _resultBox.Text = Strings.Get("NoGamePath");
-            return;
-        }
-
-        var lines = new List<string> { Strings.Get("Simulated") };
-        lines.AddRange(DescribePlan(plan));
-        _resultBox.Text = string.Join(Environment.NewLine, lines);
+        RefreshAll();
     }
 
     private void OnApply(object? sender, EventArgs e)
@@ -418,26 +303,26 @@ internal partial class MainForm : Form
         var result = _state.Apply();
         if (result is null)
         {
-            _resultBox.Text = Strings.Get("NoGamePath");
+            ShowResult(Strings.Get("NoGamePath"), ResultKind.Error);
             return;
         }
 
         if (!result.Ok)
         {
-            _resultBox.Text = string.Join(Environment.NewLine, result.Errors);
+            ShowResult(string.Join(Environment.NewLine, result.Errors), ResultKind.Error);
+            RefreshAll();
             return;
         }
 
-        var lines = new List<string>();
         if (result.ChangedFiles.Count == 0)
         {
-            lines.Add(Strings.Get("NothingToApply"));
+            ShowResult(Strings.Get("NothingToApply"), ResultKind.Neutral);
+            RefreshAll();
+            return;
         }
-        else
-        {
-            lines.Add(Strings.Get("Applied"));
-            lines.AddRange(result.ChangedFiles.Select(f => "  " + f));
-        }
+
+        var lines = new List<string> { Strings.Get("Applied") };
+        lines.AddRange(result.ChangedFiles.Select(f => "  " + f));
 
         if (result.BackedUpFiles.Count > 0)
         {
@@ -453,214 +338,174 @@ internal partial class MainForm : Form
             lines.AddRange(result.Errors);
         }
 
-        _resultBox.Text = string.Join(Environment.NewLine, lines);
-        RefreshGrids();
+        ShowResult(
+            string.Join(Environment.NewLine, lines),
+            result.Errors.Count > 0 ? ResultKind.Partial : ResultKind.Success);
+        RefreshAll();
     }
 
-    private void OnRestore(object? sender, EventArgs e)
+    private void OnRestoreLatest(object? sender, EventArgs e)
     {
-        if (_backupGrid.CurrentRow?.Tag is not BackupEntry entry)
+        var outcome = _state.RestoreLatest();
+        if (outcome is null)
         {
-            _resultBox.Text = Strings.Get("BackupEmpty");
+            ShowResult(Strings.Get("BackupEmpty"), ResultKind.Neutral);
             return;
         }
 
-        var outcome = _state.Backups.Restore(entry);
-        _resultBox.Text = outcome.Ok
-            ? Strings.Get("Restored") + Environment.NewLine + string.Join(Environment.NewLine, outcome.Restored)
-            : Strings.Get("RestoreMissing") + Environment.NewLine + string.Join(Environment.NewLine, outcome.Missing);
-
-        RefreshGrids();
+        ShowResult(
+            outcome.Ok
+                ? Strings.Get("Restored") + Environment.NewLine + string.Join(Environment.NewLine, outcome.Restored)
+                : Strings.Get("RestoreMissing") + Environment.NewLine + string.Join(Environment.NewLine, outcome.Missing),
+            outcome.Ok ? ResultKind.Success : ResultKind.Error);
+        RefreshAll();
     }
 
-    private void OnDiscard(object? sender, EventArgs e)
+    // ---------------------------------------------------------------- resultado
+
+    private enum ResultKind
     {
-        _state.ResetProfile();
-        RefreshGrids();
-        _resultBox.Text = Strings.Get("ProfileSaved");
+        Neutral,
+        Success,
+        Partial,
+        Error,
     }
 
-    private static IEnumerable<string> DescribePlan(ApplyPlan plan)
+    private void ShowResult(string message, ResultKind kind)
     {
-        foreach (var issue in plan.Validation.Issues)
+        var color = kind switch
         {
-            yield return $"  [{issue.Severity}] {issue.Name}: {issue.Message}";
-        }
+            ResultKind.Success => _palette.Accent,
+            ResultKind.Partial => _palette.Error,
+            ResultKind.Error => _palette.Error,
+            _ => _palette.OnSurface,
+        };
 
-        foreach (var change in plan.MenuChanges)
-        {
-            var origin = plan.Origins.TryGetValue(change.Option, out var o) ? o.ToString() : "";
-            yield return $"  {change.Option}: {change.Before} -> {change.After} ({origin})";
-        }
+        _resultPanel.BackColor = kind == ResultKind.Neutral
+            ? _palette.Surface
+            : CyberpunkPalette.Mix(_palette.Surface, color, 0.14);
 
-        foreach (var change in plan.IniChanges)
-        {
-            yield return $"  {change.Section}/{change.Key}: {change.Before ?? "(novo)"} -> {change.After}";
-        }
-
-        foreach (var change in plan.CetChanges)
-        {
-            yield return $"  {change.Patch}: {change.Before} -> {change.After}";
-        }
+        _resultLabel.ForeColor = color;
+        _resultLabel.Text = message;
+        _resultPanel.Visible = true;
     }
 
-    // ---------------------------------------------------------------- atualizacao das abas
+    // ---------------------------------------------------------------- atualizacao
 
     private void RefreshAll()
     {
-        UpdateLayersLabel();
+        RefreshOrientation();
+        RefreshEffect();
+        RefreshState();
         UpdateActionStates();
-        RefreshGrids();
     }
 
-    private void RefreshGrids()
+    private void RefreshOrientation()
     {
-        FillProfileGrid();
-        FillEngineGrid();
-        FillMenuGrid();
-        FillBackupGrid();
-        FillLogGrid();
-    }
+        var valid = _state.Locator is not null && _state.Validator?.IsValidInstallation() == true;
+        _orientationPanel.Visible = !valid;
 
-    private void FillProfileGrid()
-    {
-        _profileGrid.Rows.Clear();
-        _profileGrid.Columns.Clear();
-
-        _profileGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Option"), FillWeight = 30 });
-        _profileGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Value"), FillWeight = 20 });
-        _profileGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Desired"), FillWeight = 20 });
-        _profileGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Origin"), FillWeight = 30 });
-
-        var plan = _state.Plan();
-        var effective = plan is null
-            ? null
-            : Core.Profile.VariantResolver.Resolve(_state.Profile, _state.EnabledVariants, _state.Schema!);
-
-        foreach (var (option, value) in _state.Profile.UserSettingsValues)
+        if (valid)
         {
-            var origin = plan?.Origins.TryGetValue(option, out var o) == true ? OriginText(o) : Strings.Get("OriginProfile");
-            var effectiveValue = effective?.MenuValues.TryGetValue(option, out var ev) == true ? ev.Display : value.Display;
-            _profileGrid.Rows.Add(option, value.Display, effectiveValue, origin);
+            return;
         }
 
-        foreach (var (variantId, variant) in _state.Profile.Variants)
-        {
-            foreach (var (option, value) in variant.UserSettingsValues)
+        _orientationLabel.Text = string.Join(
+            Environment.NewLine,
+            new[]
             {
-                var enabled = _state.EnabledVariants.Contains(variantId);
-                var origin = enabled ? Strings.Get("OriginVariant") : Strings.Get("OriginDefault");
-                var effectiveValue = enabled ? value.Display : Strings.Get("InEffect");
-                _profileGrid.Rows.Add(option, value.Display, effectiveValue, origin);
-            }
-        }
-        FinishColumns(_profileGrid);
+                Strings.Get("FirstRunTitle"),
+                string.Empty,
+                Strings.Get("FirstRunSteam"),
+                Strings.Get("FirstRunEpic"),
+                Strings.Get("FirstRunGog"),
+                string.Empty,
+                Strings.Get("FirstRunSave"),
+            });
     }
 
-    private void FillEngineGrid()
+    private void RefreshEffect()
     {
-        _engineGrid.Rows.Clear();
-        _engineGrid.Columns.Clear();
-
-        _engineGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Section"), FillWeight = 25 });
-        _engineGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Key"), FillWeight = 25 });
-        _engineGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Value"), FillWeight = 12 });
-        _engineGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Description"), FillWeight = 38 });
-
-        var ini = _state.ReadEngineIni();
-
-        foreach (var (section, keys) in _state.Profile.UserIni)
+        var lines = new List<string>
         {
-            foreach (var (key, value) in keys)
-            {
-                ini.TryGetValue($"{section}/{key}", out var existing);
-                var description = existing?.Comment;
-                if (string.IsNullOrWhiteSpace(description))
-                {
-                    description = Strings.Get("NoDescription");
-                }
+            Strings.Get("BaseProfileEffect"),
+            string.Empty,
+            string.Format(CultureInfo.CurrentCulture, Strings.Get("SettingsToChange"), _state.CountPendingChanges()),
+        };
 
-                var current = existing is null ? Strings.Get("NewKey") : existing.Value;
-                _engineGrid.Rows.Add(section, key, $"{current} -> {value}", description);
-            }
-        }
-        FinishColumns(_engineGrid);
+        _effectLabel.Text = string.Join(Environment.NewLine, lines);
     }
 
-    private void FillMenuGrid()
+    private void RefreshState()
     {
-        _menuGrid.Rows.Clear();
-        _menuGrid.Columns.Clear();
-
-        _menuGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Option"), FillWeight = 34 });
-        _menuGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Desired"), FillWeight = 20 });
-        _menuGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("InEffect"), FillWeight = 20 });
-        _menuGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Origin"), FillWeight = 26 });
-
-        var effective = _state.ReadEffectiveMenuValues();
-        var plan = _state.Plan();
-        var desired = new Dictionary<string, string>(StringComparer.Ordinal);
-
-        foreach (var (option, value) in _state.Profile.UserSettingsValues)
+        if (_blockReason is not null)
         {
-            desired[option] = value.Display;
+            _stateLabel.ForeColor = _palette.PrimaryText;
+            _stateLabel.Text = _blockReason;
+            return;
         }
 
-        if (plan is not null)
+        var state = _state.ReadAppliedState();
+        var leftoverHudMod = _state.DetectLeftoverHudMod();
+        var hudModSuffix = leftoverHudMod is not null
+            ? Environment.NewLine + Strings.Get("LegacyHudModNotice")
+            : "";
+
+        if (state.Total == 0)
         {
-            foreach (var (option, value) in Core.Profile.VariantResolver
-                         .Resolve(_state.Profile, _state.EnabledVariants, _state.Schema!)
-                         .MenuValues)
-            {
-                desired[option] = value.Display;
-            }
+            _stateLabel.ForeColor = _palette.OnSurfaceMuted;
+            _stateLabel.Text = leftoverHudMod is not null ? Strings.Get("LegacyHudModNotice") : "";
+            return;
         }
 
-        foreach (var (option, wanted) in desired.OrderBy(k => k.Key, StringComparer.Ordinal))
+        if (state.Applied)
         {
-            var inEffect = effective.TryGetValue(option, out var current) ? current : Strings.Get("MenuMissing");
-            var origin = plan?.Origins.TryGetValue(option, out var o) == true ? OriginText(o) : Strings.Get("OriginProfile");
-            var row = AddRow(_menuGrid, option, wanted, inEffect, origin);
-            if (inEffect != wanted)
-            {
-                row.Cells[2].Style.ForeColor = Color.DarkOrange;
-            }
+            _stateLabel.ForeColor = _palette.Accent;
+            _stateLabel.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                Strings.Get("StateApplied"),
+                state.AppliedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.CurrentCulture) ?? "") + hudModSuffix;
+            return;
         }
-        FinishColumns(_menuGrid);
+
+        _stateLabel.ForeColor = _palette.OnSurfaceMuted;
+
+        if (state.AppliedAt is null)
+        {
+            _stateLabel.Text = Strings.Get("StateNeverApplied") + hudModSuffix;
+            return;
+        }
+
+        _stateLabel.Text = string.Format(
+            CultureInfo.CurrentCulture,
+            Strings.Get("StateDiverging"),
+            state.Diverging) + hudModSuffix;
     }
 
-    private void FillBackupGrid()
+    private void UpdateActionStates()
     {
-        _backupGrid.Rows.Clear();
-        _backupGrid.Columns.Clear();
+        string? reason = null;
 
-        _backupGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("BackupOf"), FillWeight = 30 });
-        _backupGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Files"), FillWeight = 70 });
-
-        foreach (var entry in _state.Backups.List())
+        if (_state.Locator is null)
         {
-            var row = AddRow(_backupGrid, entry.Label, string.Join(", ", entry.Files));
-            row.Tag = entry;
+            reason = Strings.Get("NoGamePath");
         }
-        FinishColumns(_backupGrid);
-    }
-
-    private void FillLogGrid()
-    {
-        _logGrid.Rows.Clear();
-        _logGrid.Columns.Clear();
-
-        _logGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("When"), FillWeight = 25 });
-        _logGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Files"), FillWeight = 30 });
-        _logGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = Strings.Get("Changes"), FillWeight = 45 });
-
-        foreach (var entry in _state.Log.Read())
+        else if (_state.Validator is not null && !_state.Validator.IsValidInstallation())
         {
-            _logGrid.Rows.Add(
-                entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                string.Join(", ", entry.Files),
-                string.Join("; ", entry.Details));
+            reason = Strings.Get("InvalidFolder");
         }
-        FinishColumns(_logGrid);
+        else if (new GameRunningGuard().IsGameRunning())
+        {
+            reason = Strings.Get("GameRunning");
+        }
+
+        _blockReason = reason;
+
+        var enabled = reason is null;
+        _applyButton.Enabled = enabled;
+        _applyButton.Text = Strings.Get("Apply").ToUpperInvariant();
+        _restoreButton.Enabled = _state.Backups.List().Count > 0;
+
+        RefreshState();
     }
 }

@@ -1,3 +1,4 @@
+using CP2077Performance.Ui.Theme;
 using Microsoft.Win32;
 
 namespace CP2077Performance.Ui;
@@ -33,9 +34,25 @@ internal static class ThemeHelper
         return false;
     }
 
+    /// <summary>
+    /// A paleta Cyberpunk da variante pedida pelo sistema.
+    /// </summary>
+    /// <remarks>
+    /// A preferencia do sistema escolhe a variante, clara ou escura; a cor vem
+    /// da paleta do aplicativo, nao do Windows. A moldura nativa da janela
+    /// continua seguindo o sistema, para que as caixas de dialogo do Windows
+    /// nao destoem.
+    /// </remarks>
+    public static CyberpunkPalette Palette => CyberpunkPalette.For(SystemPrefersDark());
+
     /// <summary>Aplica o tema do sistema a aplicacao.</summary>
     public static void ApplySystemTheme()
     {
+        if (Environment.GetEnvironmentVariable("CP2077_NO_SETCOLORMODE") == "1")
+        {
+            return;
+        }
+
         try
         {
             // no tema escuro o modo e fixado; no claro, o modo 'System' acompanha

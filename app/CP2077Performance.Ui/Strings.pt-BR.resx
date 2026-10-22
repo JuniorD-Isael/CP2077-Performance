@@ -5,62 +5,32 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="AppTitle" xml:space="preserve"><value>CP2077 Performance</value></data>
-  <data name="TabProfile" xml:space="preserve"><value>Perfil</value></data>
-  <data name="TabEngine" xml:space="preserve"><value>Motor</value></data>
-  <data name="TabMenu" xml:space="preserve"><value>Menu</value></data>
-  <data name="TabBackups" xml:space="preserve"><value>Backups</value></data>
-  <data name="TabLog" xml:space="preserve"><value>Registro</value></data>
+  <data name="HeaderSubtitle" xml:space="preserve"><value>EDGERUNNERS // SETUP 30 FPS + TELA CHEIA</value></data>
+  <data name="StatusHeading" xml:space="preserve"><value>STATUS DO PERFIL</value></data>
   <data name="GameFolder" xml:space="preserve"><value>Pasta do jogo</value></data>
   <data name="Browse" xml:space="preserve"><value>Procurar...</value></data>
   <data name="Validate" xml:space="preserve"><value>Validar</value></data>
-  <data name="Apply" xml:space="preserve"><value>Aplicar</value></data>
-  <data name="Simulate" xml:space="preserve"><value>Simular</value></data>
-  <data name="Restore" xml:space="preserve"><value>Restaurar</value></data>
-  <data name="Discard" xml:space="preserve"><value>Descartar edições</value></data>
-  <data name="Layers" xml:space="preserve"><value>Camadas de configuração:</value></data>
-  <data name="Available" xml:space="preserve"><value>disponível</value></data>
-  <data name="Unavailable" xml:space="preserve"><value>indisponível</value></data>
-  <data name="Origin" xml:space="preserve"><value>origem</value></data>
-  <data name="Section" xml:space="preserve"><value>Seção</value></data>
-  <data name="Key" xml:space="preserve"><value>Chave</value></data>
-  <data name="Value" xml:space="preserve"><value>Valor</value></data>
-  <data name="Description" xml:space="preserve"><value>Descrição</value></data>
-  <data name="Option" xml:space="preserve"><value>Opção</value></data>
-  <data name="Desired" xml:space="preserve"><value>Desejado</value></data>
-  <data name="InEffect" xml:space="preserve"><value>Em vigor</value></data>
-  <data name="Variants" xml:space="preserve"><value>Variantes</value></data>
-  <data name="Version" xml:space="preserve"><value>Versão</value></data>
-  <data name="Target" xml:space="preserve"><value>Alvo</value></data>
-  <data name="ProfileName" xml:space="preserve"><value>Nome do perfil</value></data>
-  <data name="GameState" xml:space="preserve"><value>Estado do jogo</value></data>
+  <data name="Apply" xml:space="preserve"><value>Aplicar perfil</value></data>
+  <data name="Restore" xml:space="preserve"><value>Restaurar backup</value></data>
   <data name="NoGamePath" xml:space="preserve"><value>Aponte para a pasta onde o Cyberpunk 2077 está instalado</value></data>
   <data name="GameRunning" xml:space="preserve"><value>O jogo está em execução. Feche-o antes de aplicar.</value></data>
   <data name="InvalidFolder" xml:space="preserve"><value>Esta pasta não é uma instalação do Cyberpunk 2077</value></data>
   <data name="NothingToApply" xml:space="preserve"><value>Tudo já está como o perfil define</value></data>
-  <data name="Simulated" xml:space="preserve"><value>Simulação concluída: nenhum arquivo foi escrito</value></data>
   <data name="Applied" xml:space="preserve"><value>Perfil aplicado. Reinicie o jogo.</value></data>
   <data name="Partial" xml:space="preserve"><value>Aplicado com falhas</value></data>
   <data name="BackupOf" xml:space="preserve"><value>Backup criado em</value></data>
   <data name="RestoreMissing" xml:space="preserve"><value>Um arquivo deste backup não existe mais; a restauração foi recusada</value></data>
   <data name="Restored" xml:space="preserve"><value>Backup restaurado</value></data>
-  <data name="TokenWarning" xml:space="preserve"><value>A presença do nome no executável não prova que o motor o leia como cvar</value></data>
-  <data name="ValueOrigin" xml:space="preserve"><value>Origem do valor</value></data>
-  <data name="OriginProfile" xml:space="preserve"><value>Perfil</value></data>
-  <data name="OriginVariant" xml:space="preserve"><value>Variante</value></data>
-  <data name="OriginDefault" xml:space="preserve"><value>Padrão do jogo</value></data>
-  <data name="CvarMissing" xml:space="preserve"><value>não existe no executável</value></data>
-  <data name="CvarKnownAbsent" xml:space="preserve"><value>não existe no executável, mas veio do jogo</value></data>
-  <data name="MenuMissing" xml:space="preserve"><value>não existe no arquivo de opções do jogo</value></data>
-  <data name="NewKey" xml:space="preserve"><value>será acrescentada</value></data>
-  <data name="NoDescription" xml:space="preserve"><value>(sem descrição do jogo)</value></data>
-  <data name="LogEmpty" xml:space="preserve"><value>Nenhuma aplicação registrada ainda</value></data>
   <data name="BackupEmpty" xml:space="preserve"><value>Nenhum backup ainda</value></data>
-  <data name="LeftPanel" xml:space="preserve"><value>Opções</value></data>
-  <data name="RightPanel" xml:space="preserve"><value>Situação</value></data>
-  <data name="CopyProfile" xml:space="preserve"><value>Copiar o perfil</value></data>
-  <data name="ProfileSaved" xml:space="preserve"><value>Perfil salvo</value></data>
-  <data name="Refresh" xml:space="preserve"><value>Atualizar</value></data>
-  <data name="Files" xml:space="preserve"><value>Arquivos</value></data>
-  <data name="When" xml:space="preserve"><value>Quando</value></data>
-  <data name="Changes" xml:space="preserve"><value>Alterações</value></data>
+  <data name="FirstRunTitle" xml:space="preserve"><value>Aponte para a pasta onde o Cyberpunk 2077 está instalado</value></data>
+  <data name="FirstRunSteam" xml:space="preserve"><value>Steam: normalmente em C:\Program Files (x86)\Steam\steamapps\common\Cyberpunk 2077</value></data>
+  <data name="FirstRunEpic" xml:space="preserve"><value>Epic: normalmente em C:\Program Files\Epic Games\Games\Cyberpunk 2077</value></data>
+  <data name="FirstRunGog" xml:space="preserve"><value>GOG: normalmente em C:\GOG Games\Cyberpunk 2077</value></data>
+  <data name="FirstRunSave" xml:space="preserve"><value>Seu save fica sempre em %LOCALAPPDATA%\CD Projekt Red\Cyberpunk 2077, seja qual for a loja.</value></data>
+  <data name="BaseProfileEffect" xml:space="preserve"><value>Aplica o perfil de desempenho para máquinas fracas (30 FPS) e o modo de tela cheia, mantendo a resolução configurada no jogo.</value></data>
+  <data name="SettingsToChange" xml:space="preserve"><value>{0} configurações serão alteradas.</value></data>
+  <data name="StateApplied" xml:space="preserve"><value>Aplicado em {0}. Reinicie o jogo.</value></data>
+  <data name="StateNeverApplied" xml:space="preserve"><value>O perfil ainda não foi aplicado.</value></data>
+  <data name="StateDiverging" xml:space="preserve"><value>{0} configurações divergem do que o jogo está usando.</value></data>
+  <data name="LegacyHudModNotice" xml:space="preserve"><value>Aviso: o mod CP2077Performance de uma versão anterior foi encontrado em cyber_engine_tweaks\mods. A alternância de HUD agora pertence a um projeto separado e este aplicativo não o gerencia nem o altera mais.</value></data>
 </root>

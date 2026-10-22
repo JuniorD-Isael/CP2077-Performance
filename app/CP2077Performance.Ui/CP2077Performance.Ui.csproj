@@ -12,6 +12,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CP2077Performance.Core\CP2077Performance.Core.csproj" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CP2077Performance.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>
