@@ -9,6 +9,11 @@ public enum ValueOrigin
     ProfileBase,
     Variant,
     SchemaDefault,
+
+    /// <summary>
+    /// De uma opcao de exibicao, que vem da maquina e nao do perfil.
+    /// </summary>
+    Display,
 }
 
 public sealed record ApplyPlan(
@@ -18,7 +23,8 @@ public sealed record ApplyPlan(
     IReadOnlyList<PatchChange> CetChanges,
     IReadOnlyList<string> MissingMenuOptions,
     IReadOnlyDictionary<string, ValueOrigin> Origins,
-    IReadOnlyList<string> FilesToWrite)
+    IReadOnlyList<string> FilesToWrite,
+    IReadOnlyList<IniRemovalSkipped> IniRemovalsSkipped)
 {
     public bool CanApply => !Validation.HasErrors && MissingMenuOptions.Count == 0;
 
