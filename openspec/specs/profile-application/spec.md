@@ -103,36 +103,33 @@ O aplicativo SHALL escrever, para cada opção de lista visada, o valor e o índ
 - **WHEN** o valor de uma opção de lista já é o desejado, mas o índice aponta para outro item
 - **THEN** o aplicativo ajusta apenas o índice
 
-### Requirement: A variante de HUD é uma opção liga e desliga
+### Requirement: Uma variante é um conjunto nomeado, aplicável às duas camadas
 
-O aplicativo SHALL apresentar a variante de HUD como uma opção liga e desliga, e ao desligá-la SHALL restaurar o valor padrão do esquema do jogo para as opções que a variante affecta.
+O perfil SHALL definir variantes como conjuntos nomeados, cada um com rótulo, resumo em linguagem corrente e destaques do efeito. Uma variante SHALL poder sobrescrever tanto as opções de menu quanto as chaves de cvar do motor. Ao desligar uma variante, o aplicativo SHALL restaurar, nas duas camadas, o valor padrão do esquema do jogo para as opções que ela afetou.
 
 #### Scenario: Variante ligada
 
-- **WHEN** o usuário liga a variante de HUD e aplica o perfil
-- **THEN** as opções da variante são aplicadas por cima do perfil base
+- **WHEN** o usuário liga uma variante e aplica o perfil
+- **THEN** as opções de menu da variante são aplicadas por cima do perfil base
+- **AND** as chaves de cvar da variante são aplicadas na seção correspondente do arquivo de cvars
 
 #### Scenario: Variante desligada
 
-- **WHEN** o usuário desliga a variante de HUD e aplica o perfil
-- **THEN** as opções afetadas pela variante voltam ao valor padrão do esquema do jogo
-- **AND** as demais opções do perfil base são aplicadas normalmente
+- **WHEN** o usuário desliga uma variante e aplica o perfil
+- **THEN** as opções de menu afetadas pela variante voltam ao valor padrão do esquema do jogo
+- **AND** as chaves de cvar afetadas pela variante deixam de ser escritas
+- **AND** as demais opções e chaves do perfil base são aplicadas normalmente
 
 #### Scenario: Alternar a variante repetidamente
 
 - **WHEN** o usuário liga e desliga a variante em sequência, aplicando entre uma e outra
 - **THEN** o resultado final reflete o estado da variante no momento da aplicação
 
-### Requirement: A simulação não escreve nada
+#### Scenario: Variante com chaves de cvar
 
-O aplicativo SHALL apresentar todas as alterações que uma aplicação faria, sem escrever em nenhum arquivo.
-
-#### Scenario: Usuário solicita a simulação
-
-- **WHEN** o usuário solicita uma simulação
-- **THEN** o aplicativo lista cada arquivo que seria alterado e cada valor antes e depois
-- **AND** nenhum arquivo é criado, alterado ou removido
-- **AND** nenhum backup é gerado
+- **WHEN** a variante declara uma chave de cvar que ainda não existe no arquivo do motor
+- **THEN** a chave é acrescentada na seção correta, preservando a estrutura do arquivo
+- **AND** a aplicação é concluída sem erro
 
 ### Requirement: As alterações aplicadas são registradas
 
@@ -170,3 +167,39 @@ O aplicativo SHALL permitir editar o perfil, SHALL persistir o perfil editado em
 
 - **WHEN** o usuário descarta as edições
 - **THEN** o perfil curado que acompanha o aplicativo volta a ser o perfil em uso
+
+### Requirement: A variante declara seu efeito em linguagem corrente
+
+Cada variante SHALL declarar um rótulo, um resumo em linguagem corrente e a lista de destaques do que altera, para que o aplicativo explique a escolha sem expor identificadores técnicos. O aplicativo SHALL continuar aplicando variantes que não declaram esses campos, apresentando-as sem resumo.
+
+#### Scenario: Variante com resumo e destaques
+
+- **WHEN** a variante declara rótulo, resumo e destaques
+- **THEN** o aplicativo apresenta o rótulo, o resumo e os destaques da variante
+
+#### Scenario: Variante sem resumo
+
+- **WHEN** a variante não declara rótulo, resumo nem destaques
+- **THEN** o aplicativo a aplica normalmente
+- **AND** a apresenta sem resumo, sem falhar a aplicação
+
+#### Scenario: Perfil gravado no formato anterior
+
+- **WHEN** o perfil do usuário em disco tem uma variante sem resumo e sem chaves de cvar
+- **THEN** o aplicativo a lê e a aplica como uma variante do menu
+- **AND** não descarta a variante nem falha ao carregar o perfil
+
+### Requirement: O perfil curado não altera o HUD
+
+O perfil curado SHALL NOT declarar opções de menu, cvars ou variantes cujo efeito seja alterar elementos do HUD do jogo. O mecanismo de variantes SHALL permanecer disponível, e um id de variante persistido que o perfil não declara mais SHALL ser ignorado sem erro.
+
+#### Scenario: Perfil sem opções de HUD
+
+- **WHEN** o perfil curado é carregado
+- **THEN** ele não declara a variante `hudMinimal` nem opções como `minimap`, `quest_tracker` ou `npc_nameplates`
+
+#### Scenario: Variante salva que o perfil não declara mais
+
+- **WHEN** o estado salvo referencia o id `hudMinimal` e o perfil carregado não o declara
+- **THEN** o aplicativo ignora esse id sem erro
+- **AND** não escreve nem remove opções do jogo por causa dele
