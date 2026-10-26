@@ -1,7 +1,7 @@
 {
   "$schema": "./profile.schema.json",
   "name": "Low-Spec 30 FPS",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha",
   "target": {
     "cpu": "AMD Ryzen 5 5500U (6C/12T, 2.1 GHz)",
     "gpu": "AMD Radeon Vega 8 (integrated, shared VRAM)",
@@ -58,9 +58,13 @@
     },
     "Rendering/AsyncCompute": {
       "BuildDepthChain": "False",
+      "DPL": "False",
       "DynamicTexture": "False",
       "Enable": "False",
+      "ExposureScaleBuffer": "False",
+      "ExtendedDuringSSR": "False",
       "FlattenNormals": "False",
+      "HairClears": "False",
       "LutGeneration": "False",
       "RaytraceASBuild": "False",
       "SSAO": "False"
@@ -105,7 +109,7 @@
       "UseLocalContactShadowsOnHair": "False"
     },
     "Vehicle": {
-      "EnableAirResistane": "False",
+      "EnableAirResistance": "False",
       "PhysXClampHugeImpacts": "False",
       "PhysXClampHugeSpeeds": "False"
     },
@@ -164,5 +168,6 @@
       "disable_vignette": true,
       "disable_win7_vsync": true
     }
-  }
+  },
+  "variants": {}
 }

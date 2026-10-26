@@ -254,3 +254,526 @@ veio de leitura direta de config, decompilação do ConfigOverhaul, log do CET
 em runtime e varredura de strings do binário. A análise com xrefs (mapear a
 função C++ que aplica cada cvar) continua sendo o próximo passo possível,
 mas não é necessária para o perfil.
+
+---
+
+## 10. Validação em runtime — sessão medida de 19 minutos
+
+Uma sessão de jogo foi monitorada com amostragem de ~1 s (processo, GPU,
+VRAM, I/O) e com rastreamento de eventos de filesystem, para obter o
+comportamento real em vez de inferido.
+
+### 10.1 A camada de menu sobrevive a uma sessão inteira
+
+Das **37 opções** do perfil, **35** estavam exatamente como o perfil define
+depois da sessão. Das **13 opções de lista** em que o perfil diverge do
+default do jogo, **13 foram honradas** pelo motor:
+
+| opção | default do jogo | perfil | valor no jogo |
+|---|---|---|---|
+| CrowdDensity | High | Low | Low |
+| TextureQuality | High | Low | Low |
+| ShadowMeshQuality | Medium | Low | Low |
+| CascadedShadowsRange | Medium | Low | Low |
+| VolumetricFogResolution | Medium | Low | Low |
+| VolumetricCloudsQuality | Medium | Off | Off |
+| MaxDynamicDecals | Medium | Low | Low |
+| SubsurfaceScatteringQuality | Medium | Low | Low |
+| LODPreset | Medium | Low | Low |
+| HDDMode2 | Auto | Off | Off |
+| MotionBlur | Low | Off | Off |
+| HDDMode | Auto | On | On |
+
+As outras 8 opções de lista do perfil já coincidem com o **piso** que o
+esquema do jogo permite (`ColorPrecision`=Medium é o mínimo,
+`GlobaIlluminationRange`=High é o mínimo, `Anisotropy`=1 é o mínimo).
+
+Duas exceções, ambas reais e esperadas:
+
+- **`EnableTelemetry: false` é inefetivo.** O jogo o reativa por política de
+  conta. Nenhuma ferramenta externa vence isso.
+- **`HDDMode`** — durante a medição o valor estava "Auto" porque foi alterado
+  dentro do próprio jogo, não por falha de aplicação.
+
+### 10.2 O modelo correto de "reversão silenciosa"
+
+A §1.1 descrevia o jogo como "revertendo" valores inválidos. A evidência de
+runtime mostra um mecanismo mais preciso:
+
+1. **No load**, o jogo carrega o `UserSettings.json`, **valida** cada opção
+   contra o esquema e mantém em memória o valor aceito.
+2. **No exit**, o jogo **descarrega a memória** para o arquivo.
+
+Consequência prática: um valor aplicado com o jogo **fechado** sobrevive
+intacto; um valor alterado por ferramenta com o jogo **aberto** é apagado na
+saída. Isso não é normalização periódica — é flush de estado.
+
+> O jogo também escreve o `UserSettings.json` **durante** a sessão (observado
+> às 23:42:40 numa sessão que durou até 23:48:51). Qualquer ferramenta
+> externa que escreva nesse arquivo pode ser atropelada a qualquer momento.
+
+### 10.3 O que o motor realmente lê
+
+O log do CET expõe o hook `HookGameOptionInit(struct GameOption *)` e
+imprime, para cada opção registrada, o path no formato `Grupo/Feature/Nome`.
+São **13** settings ocultos — ou seja, 13 opções que o motor registra e que
+portanto o `user.ini` controla de fato:
+
+```
+Developer/FeatureToggles/Antialiasing
+Developer/FeatureToggles/ScreenSpaceReflection
+Rendering/AsyncCompute/BuildDepthChain
+Rendering/AsyncCompute/DPL
+Rendering/AsyncCompute/DynamicTexture
+Rendering/AsyncCompute/Enable
+Rendering/AsyncCompute/ExposureScaleBuffer
+Rendering/AsyncCompute/ExtendedDuringSSR
+Rendering/AsyncCompute/FlattenNormals
+Rendering/AsyncCompute/HairClears
+Rendering/AsyncCompute/LutGeneration
+Rendering/AsyncCompute/RaytraceASBuild
+Rendering/AsyncCompute/SSAO
+```
+
+O perfil (antes desta versão) cobria 9. Os 4 ausentes —
+`DPL`, `ExposureScaleBuffer`, `ExtendedDuringSSR` e `HairClears` — foram
+adicionados: são passes de *async compute*, custo puro numa GPU integrada.
+
+**Modelo de armazenamento:** o executável **não** guarda o path completo.
+`"Developer/FeatureToggles/Antialiasing"` não existe como string; existem
+`"Developer/FeatureToggles"` e `"Antialiasing"` como tokens separados, e o
+motor compõe o path em runtime. Por isso a validação de chaves procura o
+**token isolado** do nome da chave.
+
+### 10.4 Chave de cvar que não existe: erro de digitação herdado
+
+`EnableAirResistane` **não existe** nem como token ASCII, nem como UTF-16,
+nem em qualquer arquivo do jogo. O nome real no binário é
+`EnableAirResistance` (contexto: `base\gameplay\vehicles\curves\drive_helpers.curveset`).
+O perfil usava a grafia errada, **herdada da `FeatureList` do
+ConfigOverhaul** — que é uma lista transcrita de um app .NET decompilado e
+nunca confrontada com o binário.
+
+Corregido nesta versão, e o instalador agora **valida toda chave de cvar
+contra o executável** antes de escrever.
+
+> **Limitação honesta:** presença no binário prova que o *nome* existe, não
+> que o motor o leia como cvar. `EnableAirResistance`, por exemplo, aparece
+> na região de curvas de física do veículo — pode ser propriedade de curva
+> em vez de cvar. Só a análise de xrefs (mapear a função C++ que registra
+> cada `GameOption`) fecha essa questão.
+
+### 10.5 O `user.ini` original do jogo traz uma chave inexistente
+
+O `user.ini` que o próprio jogo entrega traz:
+
+```ini
+[Rendering/FrostedGlass]
+;Eats 2-4 FPS
+GlassUseMipChain = False
+```
+
+`GlassUseMipChain` **não existe no executável** (só `m_hasMipchain` e
+`m_mipChain`). É a única das 57 chaves do perfil ausente do binário, e é
+mantida no perfil com um aviso explícito do instalador: o motor pode estar
+ignorando essa chave em silêncio desde sempre.
+
+### 10.6 Comportamento de arquivos observado
+
+| quando | arquivo | por quê |
+|---|---|---|
+| a cada ~2-3 min | `red4ext/plugins/Codeware/Persistent/ScriptableServiceContainer.dat` | estado persistente do Codeware |
+| a cada ~1-2 min | `%LOCALAPPDATA%\...\cache\GamePipelineLibrary.cache` | cache de pipeline do jogo |
+| ao abrir o overlay | `cyber_engine_tweaks/layout.ini` | layout do overlay do CET |
+| ao trocar câmera | `mods/immersive_third_person/settings.lua` | preferências do mod de terceira pessoa |
+| durante a sessão | `%LOCALAPPDATA%\...\UserSettings.json` | flush de settings |
+| na saída | `UserSettings.json`, `persistent.json`, `bindings.json`, `menu_mod/settings.json` | flush final |
+| na saída | `scripting.log`, `cyber_engine_tweaks.log`, `nativeSettings.log`, logs do RED4ext | logs bufferizados do CET |
+| na saída | `Cyberpunk2077.exe-<stamp>-<pid>-<tid>.txt`, `REDEngineErrorReporter.exe-...txt` **removidos** | arquivos temporários do error reporter, criados no startup |
+
+### 10.7 Medições (19 min de gameplay)
+
+| métrica | p25 | mediana | p95 | max |
+|---|---|---|---|---|
+| GPU utilization % | 59 | **95** | 106 | 112 |
+| CPU (de 12 núcleos) | 2,3 | 4,2 | 8,6 | 14,2 |
+| VRAM dedicada MB | 398 | 407 | 419 | 424 |
+| VRAM compartilhada MB | 2.303 | 2.358 | 2.504 | 2.609 |
+| RAM privado MB | 7.139 | 7.205 | 7.397 | 7.481 |
+
+**50,6%** das amostras com GPU ≥ 95%. CPU na mediana ocupa 4,2 de 12 núcleos.
+O gargalo é a GPU integrada, confirmado com densidade de amostragem — não
+mais com uma leitura única.
+
+---
+
+## 11. Bugs encontrados e corrigidos nesta versão
+
+| # | bug | impacto | correção |
+|---|---|---|---|
+| 1 | Painel escrevia `user.ini` com **cinco** níveis `..` a partir do diretório do mod | a camada de cvars **nunca** foi aplicada pelo painel (3 falhas registradas em log) | corrigido para seis níveis |
+| 2 | O painel escrevia o `UserSettings.json` mas **nunca** a camada de patches do CET | o painel aplicava 2 das 3 camadas | o painel agora aplica as três, lendo o perfil |
+| 3 | O painel tinha **8 chaves a menos** que o perfil (`DRS_MaxResolution`, `VSync`, `MotionBlur`, `FilmGrain`, `ChromaticAberration`, `DepthOfField`, `LensFlares`, `Vignette`) | "fonte única de verdade" era falso | o painel lê `profile.json`; os valores vêm do perfil |
+| 4 | O instalador escrevia `value` mas **nunca** `index` nas opções de lista | `value` e `index` podiam divergir (ex.: `HDDMode` value="On", index=2/"Auto") | o instalador reconcilia os dois campos |
+| 5 | `EnableAirResistane` no perfil | cvar inerte (nome inexistente) | corrigido para `EnableAirResistance` |
+| 6 | Nenhuma validação das chaves de cvar | erros de digitação passavam despercebidos | o instalador valida as 57 chaves contra o executável |
+| 7 | `powershell -File Install-Profile.ps1` **não funcionava** | o comando que o README documenta quebrava: com `[CmdletBinding()]`, o PowerShell 5.1 não popula `$PSScriptRoot` nos defaults do `param` | default resolvido no corpo do script |
+| 8 | `profile/profile.schema.json` referenciado e inexistente | referência `$schema` quebrada | schema criado e o perfil validado contra ele |
+| 9 | Dry-run do instalador apagava arquivos | violava o contrato de "não escreve nada" | a limpeza só ocorre sem `-DryRun` |
+
+---
+
+## 12. Pendências conhecidas
+
+- **A morte silenciosa do botão Apply ainda não tem causa identificada.** O
+  log do painel para logo após a mensagem de falha do `user.ini`, sem linha
+  seguinte e sem erro Lua no log do CET. A nova versão envolve o Apply em
+  `pcall` e grava o erro em `performanceprofile-*.log.erros`; um mod de
+  diagnóstico (`PerfProbe`) testa `os.getenv`, `io.open` absoluto,
+  `json.decode` do arquivo real e os dois caminhos relativos. **Precisa de
+  um boot do jogo para ser concluído.**
+- **`value` vs `index`:** o instalador agora escreve os dois de forma
+  coerente, mas qual dos dois o motor lê em runtime ainda não foi provado.
+- **Os 25 toggles de HUD** do schema (`minimap`, `object_markers`,
+  `npc_nameplates`, `quest_tracker`, …) não estão no perfil. São o maior
+  ganho de GPU de risco zero que resta.
+- **A análise de xrefs** (Ghidra) continua pendente: o script
+  `ReaExtractSettings.java` está escrito e nunca executou, porque o projeto
+  Ghidra persistente ficou com 0 bytes.
+
+---
+
+## 13. Validação da 0.1.1-alpha — causa-raiz do painel e FPS real
+
+Uma sessão completa de jogo foi instrumentada com o perfil `0.1.1-alpha`
+aplicado (4 cvars novos + `EnableAirResistance` + `value`/`index`
+reconciliados) e com um mod de diagnóstico (`PerfProbe`) dentro do jogo.
+
+### 13.1 O painel in-game não pode aplicar — e nunca pôde
+
+O diagnóstico dentro do jogo devolveu, sem ambiguidade:
+
+```
+os.getenv e funcao                  -> nil
+os = clock date difftime remove rename time      (sem getenv, sem execute)
+_G                                    -> nil
+io.open caminho com .. (1 nivel)     -> nil (bloqueado)
+io.open ABSOLUTO jogo (engine/config) -> nil (bloqueado)
+io.open ABSOLUTO temp do usuario     -> nil (bloqueado)
+io.open CWD relativo                 -> gravou no CWD (CWD = diretorio do mod)
+```
+
+**O sandbox Lua do CET confina o `io` ao diretório do mod.** Três
+consequências:
+
+1. **`os.getenv` não existe.** `UserSettingsPath()` chamava
+   `os.getenv("LOCALAPPDATA")` → *"attempt to call a nil value"* → o
+   callback do botão Apply morria ali, **sem log e sem erro no log do
+   CET**. É a causa-raiz da morte silenciosa registrada 3 vezes na §11.
+2. **O caminho relativo com `..` também é bloqueado.** A correção de
+   "cinco → seis níveis" da §11 é insuficiente: nenhum caminho relativo
+   alcança fora do diretório do mod. O painel não tem como escrever o
+   `user.ini` de nenhuma forma.
+3. **`_G` é `nil`.** O ambiente do mod não expõe a tabela global, e
+   `getfenv` também não está disponível — o inventário do ambiente só é
+   possível por *sonda* de nomes conhecidos.
+
+**Conclusão de arquitetura (com evidência, não opinião):** o painel in-game
+não pode ser o aplicador. Ele pode (e deve) ser **coletor de intenção +
+medidor**; a aplicação tem de acontecer fora do jogo. O instalador é o
+aplicador; o painel pode gravar a intenção no próprio diretório para que
+um aplicador externo a consuma.
+
+### 13.2 FPS real: o alvo de 30 não é alcançado em gameplay
+
+O `PerfProbe` conta frames por segundo de parede (fronteiras de `os.time`)
+e CPU-segundos por segundo de parede (núcleos médios em uso).
+
+| contexto | amostras | min | p25 | **mediana** | p75 | p95 | max |
+|---|---|---|---|---|---|---|---|
+| menu principal | 203 | 0,1 | 28 | **29** | 30 | 30 | 31 |
+| **gameplay** | 1058 | 7 | 22 | **24** | 26 | 30 | 30 |
+
+**91,4%** dos segundos de gameplay ficaram abaixo de 30 FPS. E a GPU, na
+mesma janela:
+
+| métrica | min | p25 | mediana | p75 | p95 | max |
+|---|---|---|---|---|---|---|
+| GPU utilization % | 0 | 94 | **100** | 103 | 107 | 125 |
+| CPU (de 12 núcleos) | 0 | 3,2 | **5,1** | 6,0 | 9,0 | 15,1 |
+| VRAM compartilhada MB | 0 | 2467 | **2529** | 2601 | 2654 | 2754 |
+| RAM privado MB | 0 | 7472 | **7506** | 7566 | 7674 | 7781 |
+
+**72,3%** das amostras com GPU ≥ 95%.
+
+A leitura é direta: **a GPU está saturada em 100% e a CPU tem folga
+(mediana 5,1 de 12 núcleos).** O limite é custo de fragmento. Chegar a 30
+FPS exige reduzir carga de GPU, não de CPU — o que aponta para a mesma
+direção dos toggles de HUD e dos passes de *async compute* que faltam.
+
+> Nota: o `cpu_cores` do probe (mediana 1,0) mede o **tempo de CPU do
+> processo**, que é ~1 núcleo cheio; a métrica de 5,1 núcleos vem do
+> contador de processo do Windows, que inclui as threads do motor. As duas
+> não são comparáveis diretamente — a segunda é a que interessa.
+
+### 13.3 O que o motor de fato respeita
+
+Das 37 opções do perfil, **34 ficaram intactas** após a sessão. Três são
+inerentes, por motivos diferentes:
+
+| opção | perfil | no jogo | por quê |
+|---|---|---|---|
+| `EnableTelemetry` | `false` | `true` | o jogo reativa por política de conta |
+| `HDDMode` | `"On"` | `"Auto"` | **o motor computa o modo de disco** |
+| `HDDMode2` | `"Off"` | `"On"` | idem |
+
+`HDDMode` e `HDDMode2` são um achado novo: mesmo com `value` **e** `index`
+escritos de forma coerente pelo instalador, o motor sobrescreve os dois.
+O modo de disco é **derivado do armazenamento detectado**, não uma
+preferência do usuário. (O `HDDMode` que você viu como "Auto" na sessão
+anterior era o motor, não uma configuração.)
+
+> Isso também refuta a hipótese de `value` vs `index`: para estas duas
+> opções nenhum dos dois campos importa — o motor recalcula.
+
+### 13.4 O jogo não reescreve o settings quando não há delta
+
+Nesta sessão o `UserSettings.json` **não** aparece no diff de arquivos:
+o jogo o escreveu uma única vez, às 00:30:14 (pouco depois de subir, ao
+normalizar o estado em memória), e **não** ao encerrar — porque o estado
+em memória era idêntico ao arquivo. Na sessão anterior, em que você mudou
+opções dentro do jogo, o arquivo foi reescrito na saída.
+
+Confirma o modelo da §10.2: **a escrita de saída é um flush de memória,
+e só acontece quando há divergência.**
+
+### 13.5 Efeito dos 4 cvars novos: ainda não isolado
+
+Os 4 cvars (`DPL`, `ExposureScaleBuffer`, `ExtendedDuringSSR`, `HairClears`)
+foram aplicados e confirmados no `user.ini` desta sessão, mas **o efeito
+individual não foi isolado** — falta a contraprótese (rodar sem eles na
+mesma rota). É o experimento A/B pendente, e o que falta é uma rota
+jogável comparável, não instrumentação: a instrumentação está pronta.
+
+---
+
+## 14. O aplicativo desktop
+
+O aplicativo substitui o instalador de linha de comando e o painel in-game.
+As seções abaixo registram o que a implementação fixou, e por quê.
+
+### 14.1 Regras de derivação de caminho
+
+A regra é: **um único dado informado pelo usuário** — a pasta do jogo — e
+todo o resto é derivado.
+
+| alvo | origem |
+|---|---|
+| `engine\config\platform\pc\user.ini` | `<pasta do jogo>` |
+| `bin\x64\plugins\cyber_engine_tweaks\config.json` | `<pasta do jogo>` |
+| `bin\x64\Cyberpunk2077.exe` | `<pasta do jogo>` (valida a instalação) |
+| `r6\config\settings\options.json` | `<pasta do jogo>` (esquema) |
+| `UserSettings.json` | `%LOCALAPPDATA%\CD Projekt Red\Cyberpunk 2077\` |
+
+**O diretório de save é definido pela CD PROJEKT RED, não pela loja.** A mesma
+instalação servida por Steam, Epic ou GOG lê e grava no mesmo lugar. Por isso
+uma única build cobre as três, e o aplicativo **não varre o disco** para
+descobrir instalações: o usuário aponta, e pronto.
+
+A camada de patches do Cyber Engine Tweaks é **opcional**: uma instalação sem
+o plugin é válida e opera sem essa camada, com aviso.
+
+### 14.2 O que a validação por token prova — e o que não prova
+
+O executável guarda a **seção** e a **chave** como strings separadas; o path
+`Grupo/Feature/Nome` é montado em runtime. Por isso a checagem de uma chave
+de cvar procura o **token isolado** do nome da chave, delimitado por byte
+nulo.
+
+- **Ausência de um token é sinal forte de erro de digitação.** O motor não
+  consegue casar um nome que não está no executável, e ignora chaves
+  desconhecidas em silêncio. Foi assim que `EnableAirResistane` — grafia
+  herdada da `FeatureList` do ConfigOverhaul — foi encontrado.
+- **Presença não prova consumo.** O nome existir no binário mostra que o
+  identificador existe, não que o motor o leia como cvar. `EnableAirResistance`
+  aparece na região de curvas de física de veículo, o que sugere que pode ser
+  propriedade de curva em vez de cvar. **A prova definitiva exigiria o mapa de
+  xrefs** entre a função C++ que registra a opção e a string — que ainda não
+  foi produzido (ver §12).
+
+O aplicativo declara essa limitação ao usuário, em vez de vender a checagem
+como prova.
+
+Uma exceção é conhecida e documentada: `GlassUseMipChain` não existe no
+executável, mas vem do `user.ini` que o próprio jogo entrega. Fica como
+aviso, não como erro.
+
+### 14.3 A técnica de escrita cirúrgica
+
+O arquivo de opções do jogo é reescrito **apenas** nos campos de valor e de
+índice das opções visadas. O resto do arquivo fica **byte a byte igual.
+
+A medição, contra a instalação real:
+
+```
+UserSettings.json   2768 linhas -> 2768 linhas, 26 linhas alteradas
+                    (todas campos "value" ou "index")
+user.ini            5 secoes -> 15 secoes, ordem das 5 originais preservada
+                    e todos os comentarios do motor intactos
+config.json         3 patches mudados, os outros 2 intocados
+```
+
+Um round-trip de serialização reescreveria o arquivo inteiro, mudaria a
+formatação e o tamanho dos números, e produziria um diff ilegível — o que
+contraria a promessa de auditabilidade do projeto. A verificação pós-escrita
+relê os arquivos e compara com o esperado; divergência é reportada como
+falha, não como sucesso silencioso.
+
+O `user.ini` é manipulado por texto, e não por parser de INI de uso geral,
+porque o arquivo do motor carrega comentários que documentam efeitos
+colaterais (`;Don't disable. (breaks lightmaps)`) e a ordem das seções é
+informação.
+
+### 14.4 Por que o painel in-game saiu do projeto
+
+O painel vivia no sandbox Lua do Cyber Engine Tweaks, que **confina o `io` ao
+diretório do mod**. O diagnóstico, rodando dentro do jogo, devolveu:
+
+```
+os.getenv                     -> nao existe
+os = clock date difftime remove rename time   (sem getenv, sem execute)
+_G                            -> nil
+io.open caminho com ".."      -> nil
+io.open caminho ABSOLUTO      -> nil
+io.open no CWD do mod         -> funciona
+```
+
+Duas consequências definitivas:
+
+1. **A causa da morte silenciosa do botão Apply.** `UserSettingsPath()` chamava
+   `os.getenv("LOCALAPPDATA")` → *"attempt to call a nil value"* → o callback
+   morria ali, sem log e sem erro no log do CET. As três falhas registradas
+   na §10 são a mesma causa.
+2. **Nenhum caminho alcança o jogo.** Nem relativo com `..`, nem absoluto.
+   O painel **nunca** conseguiu aplicar o perfil — não era bug de caminho, e
+   a correção de "cinco → seis níveis" não resolveria.
+
+Some-se a isso o fato de o painel **poder mentir**: a interface refletia o
+valor desejado, não o valor em vigor, e nada mais lia o arquivo de
+intenção que ele gravava. Um painel pela metade no menu do jogo é pior do
+que não ter: é uma interface que confirma mudanças inexistentes.
+
+O aplicativo assume o papel, e com ele o acesso real aos arquivos, a
+validação contra o esquema e contra o executável, e a possibilidade de
+mostrar o estado efetivo.
+
+## 15. As opcoes de exibicao: o que o motor resolve, e como
+
+### 15.1 O problema
+
+`WindowMode` e `Resolution` sao as duas opcoes que decidem como a imagem
+ocupa a tela. O esquema do jogo as declara assim:
+
+```json
+{ "name": "Resolution", "type": "string_list", "is_dynamic": true }
+```
+
+`is_dynamic: true` e **sem lista de valores**. O motor monta essa lista em
+runtime, a partir do monitor, e o schema - a unica fonte que o aplicativo
+consulta - nao a contem. Entre as 328 opcoes que o jogo registra, essas
+sao justamente as duas que decidem o modo de exibicao.
+
+### 15.2 O indice nao e o indice da enumeracao do Windows
+
+O `UserSettings.json` guarda, para cada opcao de lista, o `value` **e** o
+`index`. Para `Resolution`, o usuario tinha `1366x768` com `index = 2`.
+
+A enumeracao do Windows (`EnumDisplaySettings`) põe `1366x768` nos indices
+**18 a 20** do monitor de 1920x1080, e bem mais adiante no de 1600x900. A
+lista do motor e outra.
+
+E o executavel nao contem `1366x768` nem `1440x900`: as strings de
+resolucoes que existem no binario sao `3840x2160`, `3840x1600`, `3440x1440`,
+`2560x1440`, `2560x1080`, `1920x1080`, `1600x900`, `1280x720`, `960x540`,
+`640x480`, `480x270`, `456x256` e `228x128` - uma tabela de **preset de
+dimensao de render** (`renddimEPreset`), nao a lista de saida. A lista de
+resolucoes e montada em runtime.
+
+### 15.3 O modo de janela: a lista e do jogo
+
+O binario contem as chaves de localizacao, na ordem:
+
+```
+UI-Settings-Video-WindowModeSetting-Fullscreen
+UI-Settings-Video-WindowModeSetting-BorderlessWindowed
+UI-Settings-Video-WindowModeSetting-Windowed
+```
+
+e as strings de valor soltas `BorderlessWindowed` e `Windowed`. A ordem
+dessas chaves **nao** e a ordem da lista interna: o proprio jogo gravou
+`BorderlessWindowed` com indice **1** e, mais tarde, `Fullscreen` com indice
+**2**.
+
+### 15.4 A medicao que fecha a questao: o motor resolve pelo valor
+
+Com o arquivo marcando `Fullscreen` com indice 0 e `1600x900` com indice 2,
+o jogo foi iniciado. Ele **manteve os dois valores** e **recalculou os dois
+indices**:
+
+```
+antes     WindowMode = Fullscreen          index = 0
+          Resolution = 1600x900            index = 2
+
+depois    WindowMode = Fullscreen          index = 2
+          Resolution = 1600x900            index = 4
+```
+
+O valor foi respeitado e o indice, recalculado. **O motor resolve a opcao
+pelo `value`; o indice e consequencia, nao entrada.**
+
+Isso responde a pergunta que o `ROADMAP.md` §2.1 deixou aberta - com uma
+ressalva: a prova vale para as opcoes de exibicao. Para `HDDMode` e
+`HDDMode2`, o §13.3 ja havia mostrado que nenhum dos dois campos importa,
+porque o motor recalcula o valor.
+
+### 15.5 A consequencia para o aplicativo
+
+O aplicativo escreve o `value` de `WindowMode` e de `Resolution`. O indice
+ele escreve quando o conhece - e o conhecimento vem do proprio jogo: o
+aplicativo le o par que o motor gravou e guarda o indice, para escrever os
+dois na proxima vez.
+
+Quando o indice nao e conhecido, o aplicativo escreve so o valor, e o motor
+corrige o indice no proximo inicio. Nao ha aposta: o valor e o que importa.
+
+### 15.6 A janela de tela cheia, medida
+
+Com `WindowMode = Fullscreen` e `Resolution = 1600x900` gravados, e o jogo
+iniciado, a janela do jogo mediu **1600x900 @ 0,0** - a area de trabalho
+inteira do monitor principal, onde antes era uma janela de 1366x768 sem
+borda. A resolucao interna nao mudou: a escala dinamica de resolucao
+continua variando entre 50% e 85%.
+
+### 15.7 A lista do motor e mais restrita que a do monitor
+
+Com `1440x900` gravado a mao - que **e** um modo do monitor - e o jogo
+iniciado, o motor **rejeitou** o valor e voltou para `1366x768`. Com
+`1280x720`, aceitou.
+
+A lista do motor e, portanto, mais restrita que a lista de modos do monitor:
+ela tem as resolucoes padrao, e nao todas as que o driver oferece. E a
+tabela de strings do executavel (`renddimEPreset`, §15.2) tem `1600x900` e
+`1280x720`, mas nao `1440x900`.
+
+A consequencia pratica e a unica que importa para o aplicativo: **a
+resolucao nativa do monitor e sempre aceita**, porque e o modo em que o
+desktop esta rodando. O aplicativo oferece exatamente essa, e nao uma lista
+de resolucoes.
+
+### 15.8 O indice so e reescrito quando o valor diverge
+
+Com `1600x900` de indice 2 no arquivo, o jogo reescreveu para indice 4: o
+valor era o mesmo, mas o indice do motor nao. Com `1280x720` de indice 99,
+o jogo **nao reescreveu**: o valor era valido e o motor nao diverge por causa
+do indice. O indice e um detalhe do arquivo, e o motor o corrige quando
+escreve por outro motivo.

@@ -4,6 +4,28 @@ backups/
 # Estado local do mod in-game
 mod/PerformanceProfile/settings.json
 
+# Logs e debris de sessao dentro do mod in-game
+mod/PerformanceProfile/*.log
+mod/PerformanceProfile/*.tmp
+mod/PerformanceProfile/*.bak
+
+# Configuracao de agente (local da maquina)
+.opencode/
+.claude/
+.agents/
+
+# Export de sessao do OpenCode (grande, historico, nao versionado)
+otimizar-game-mod-configura-es-via-rea.json
+an-lise-do-projeto-via-rea.json
+*.session.json
+
+# Artefato de build do aplicativo
+dist/
+
+# Build do .NET
+app/**/bin/
+app/**/obj/
+
 # Sistema
 Thumbs.db
 desktop.ini

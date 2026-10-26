@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppTitle" xml:space="preserve"><value>CP2077 Performance</value></data>
+  <data name="HeaderSubtitle" xml:space="preserve"><value>EDGERUNNERS // SETUP 30 FPS + TELA CHEIA</value></data>
+  <data name="StatusHeading" xml:space="preserve"><value>STATUS DO PERFIL</value></data>
+  <data name="GameFolder" xml:space="preserve"><value>Pasta do jogo</value></data>
+  <data name="Browse" xml:space="preserve"><value>Procurar...</value></data>
+  <data name="Validate" xml:space="preserve"><value>Validar</value></data>
+  <data name="Apply" xml:space="preserve"><value>Aplicar perfil</value></data>
+  <data name="Restore" xml:space="preserve"><value>Restaurar backup</value></data>
+  <data name="NoGamePath" xml:space="preserve"><value>Aponte para a pasta onde o Cyberpunk 2077 está instalado</value></data>
+  <data name="GameRunning" xml:space="preserve"><value>O jogo está em execução. Feche-o antes de aplicar.</value></data>
+  <data name="InvalidFolder" xml:space="preserve"><value>Esta pasta não é uma instalação do Cyberpunk 2077</value></data>
+  <data name="NothingToApply" xml:space="preserve"><value>Tudo já está como o perfil define</value></data>
+  <data name="Applied" xml:space="preserve"><value>Perfil aplicado. Reinicie o jogo.</value></data>
+  <data name="Partial" xml:space="preserve"><value>Aplicado com falhas</value></data>
+  <data name="BackupOf" xml:space="preserve"><value>Backup criado em</value></data>
+  <data name="RestoreMissing" xml:space="preserve"><value>Um arquivo deste backup não existe mais; a restauração foi recusada</value></data>
+  <data name="Restored" xml:space="preserve"><value>Backup restaurado</value></data>
+  <data name="BackupEmpty" xml:space="preserve"><value>Nenhum backup ainda</value></data>
+  <data name="FirstRunTitle" xml:space="preserve"><value>Aponte para a pasta onde o Cyberpunk 2077 está instalado</value></data>
+  <data name="FirstRunSteam" xml:space="preserve"><value>Steam: normalmente em C:\Program Files (x86)\Steam\steamapps\common\Cyberpunk 2077</value></data>
+  <data name="FirstRunEpic" xml:space="preserve"><value>Epic: normalmente em C:\Program Files\Epic Games\Games\Cyberpunk 2077</value></data>
+  <data name="FirstRunGog" xml:space="preserve"><value>GOG: normalmente em C:\GOG Games\Cyberpunk 2077</value></data>
+  <data name="FirstRunSave" xml:space="preserve"><value>Seu save fica sempre em %LOCALAPPDATA%\CD Projekt Red\Cyberpunk 2077, seja qual for a loja.</value></data>
+  <data name="BaseProfileEffect" xml:space="preserve"><value>Aplica o perfil de desempenho para máquinas fracas (30 FPS) e o modo de tela cheia, mantendo a resolução configurada no jogo.</value></data>
+  <data name="SettingsToChange" xml:space="preserve"><value>{0} configurações serão alteradas.</value></data>
+  <data name="StateApplied" xml:space="preserve"><value>Aplicado em {0}. Reinicie o jogo.</value></data>
+  <data name="StateNeverApplied" xml:space="preserve"><value>O perfil ainda não foi aplicado.</value></data>
+  <data name="StateDiverging" xml:space="preserve"><value>{0} configurações divergem do que o jogo está usando.</value></data>
+  <data name="LegacyHudModNotice" xml:space="preserve"><value>Aviso: o mod CP2077Performance de uma versão anterior foi encontrado em cyber_engine_tweaks\mods. A alternância de HUD agora pertence a um projeto separado e este aplicativo não o gerencia nem o altera mais.</value></data>
+</root>

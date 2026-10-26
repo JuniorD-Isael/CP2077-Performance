@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Runner de teste proprio: sem dependencia de pacote externo, para que o
+       projeto construa e teste offline. Sai com codigo 1 se alguma verificacao
+       falhar. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>CP2077Performance.Tests</RootNamespace>
+    <AssemblyName>CP2077Performance.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CP2077Performance.Core\CP2077Performance.Core.csproj" />
+    <ProjectReference Include="..\CP2077Performance.Ui\CP2077Performance.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

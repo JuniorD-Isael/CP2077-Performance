@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/CP2077-Performance/CP2077-Performance/blob/main/profile/profile.schema.json",
+  "title": "CP2077 Performance Profile",
+  "description": "Formato do perfil de performance do CP2077-Performance. Um perfil descreve as tres camadas de configuracao do Cyberpunk 2077: cvars do motor (user.ini), opcoes do menu (UserSettings.json) e patches do Cyber Engine Tweaks.",
+  "type": "object",
+  "required": ["name", "version", "target", "userIni", "userSettings", "cetConfig"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Referencia a este schema."
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome do perfil, exibido no painel in-game e no instalador.",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "description": "Versao do perfil (SemVer).",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "target": {
+      "type": "object",
+      "description": "Hardware de referencia para o qual o perfil foi calibrado.",
+      "required": ["cpu", "gpu", "ram", "goal_fps"],
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "type": "string" },
+        "gpu": { "type": "string" },
+        "ram": { "type": "string" },
+        "goal_fps": { "type": "integer", "minimum": 1 },
+        "note": { "type": "string" }
+      }
+    },
+    "preserve": {
+      "type": "object",
+      "description": "Valores que NUNCA devem ser alterados pelo instalador.",
+      "additionalProperties": false,
+      "properties": {
+        "comment": { "type": "string" },
+        "userIni": {
+          "type": "object",
+          "description": "Secao do user.ini -> (chave -> valor a preservar).",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": ["string", "number", "boolean"] }
+          }
+        },
+        "userSettings": {
+          "type": "object",
+          "description": "Opcoes de menu preservadas por nome.",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "userIni": {
+      "type": "object",
+      "description": "Cvars do motor, agrupadas por secao do user.ini. Chaves com prefixo '_' sao comentarios e sao ignoradas.",
+      "minProperties": 1,
+      "properties": {
+        "_comment": { "type": "string" }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": ["string", "number", "boolean"] }
+      }
+    },
+    "userSettings": {
+      "type": "object",
+      "description": "Opcoes do menu do jogo, lidas de %LOCALAPPDATA%\\CD Projekt Red\\Cyberpunk 2077\\UserSettings.json.",
+      "required": ["values"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "type": "string" },
+        "values": {
+          "type": "object",
+          "description": "Nome da opcao -> valor aceito. Para opcoes de lista o valor precisa existir no array 'values' do schema do jogo (r6/config/settings/options.json).",
+          "minProperties": 1,
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "cetConfig": {
+      "type": "object",
+      "description": "Patches do Cyber Engine Tweaks (bin/x64/plugins/cyber_engine_tweaks/config.json).",
+      "required": ["patches"],
+      "additionalProperties": false,
+      "properties": {
+        "_comment": { "type": "string" },
+        "patches": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "boolean" }
+        }
+      }
+    },
+    "variants": {
+      "type": "object",
+      "description": "Variantes opcionais, ligadas pelo usuario. Uma variante alcanca as duas camadas: opcoes de menu e chaves de cvar. Desligada, uma variante devolve as opcoes que ela afeta ao default_value do esquema do jogo, e remove as chaves de cvar que ela tinha acrescentado.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label", "userSettings"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "summary": {
+            "type": "string",
+            "description": "Resumo do efeito da variante, em linguagem corrente."
+          },
+          "highlights": {
+            "type": "array",
+            "description": "Destaques do efeito da variante, em linguagem corrente.",
+            "items": { "type": "string" }
+          },
+          "userIni": {
+            "type": "object",
+            "description": "Chaves de cvar da variante, por secao do arquivo do motor.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": { "type": ["string", "number", "boolean"] }
+            }
+          },
+          "userSettings": {
+            "type": "object",
+            "required": ["values"],
+            "additionalProperties": false,
+            "properties": {
+              "values": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": { "type": ["string", "number", "boolean"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
